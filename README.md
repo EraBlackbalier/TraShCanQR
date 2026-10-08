@@ -1,56 +1,60 @@
-# TraShCanQR
+# TraShCanQR · TraShCan WebAR
 
-TraShCan es una guía web mobile-first para consultar qué residuos corresponden a cada bote. Se puede abrir la ficha desde un QR con la cámara normal del teléfono o usar el escáner integrado. El catálogo y la validación se ejecutan localmente en el navegador; no hay backend, cuentas, analítica ni envío de imágenes de cámara.
+TraShCan es una guía mobile-first para separar residuos. Además de abrir fichas desde el QR o el lector integrado, permite apuntar a una etiqueta TraShCan impresa y ver paneles HTML y elementos Three.js anclados a su pose usando seguimiento visual MindAR. La detección ocurre localmente en el navegador; no hay backend, cuentas, analítica ni envío de video.
 
 Las recomendaciones incluidas son ejemplos editables. Las reglas reales dependen del servicio de recolección de cada localidad.
 
-## Requisitos
+## Requisitos e instalación
 
-- Node.js 20 o posterior
+- Node.js 20 o posterior (Node 24 recomendado para compilar marcadores)
 - npm
 
-## Instalación y ejecución local
-
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-Abre `http://localhost:3000`. También están disponibles `npm run typecheck`, `npm run lint`, `npm test` y `npm run build`.
+Abre `http://localhost:3000`. Validaciones: `npm run typecheck`, `npm run lint`, `npm test` y `npm run build`.
 
-Para instalar exactamente las dependencias bloqueadas en `package-lock.json`, usa `npm ci`.
+## Dominio de QR y prueba local
 
-## Dominio de los QR
-
-Copia `.env.example` a `.env.local` y define el dominio que deben guardar los códigos:
+Copia `.env.example` a `.env.local` y define:
 
 ```env
-NEXT_PUBLIC_SITE_URL=https://tu-dominio.example
+NEXT_PUBLIC_SITE_URL=https://trashcan.eradimension.dev
 ```
 
-En desarrollo puedes usar una dirección accesible desde otros dispositivos en la misma red, por ejemplo `http://192.168.1.25:3000`. Arranca el servidor escuchando en la red con `npm run dev -- --hostname 0.0.0.0` y configura en `.env.local` la IP local de tu computadora. Reinicia Next.js después de cambiar variables de entorno. El acceso a cámara requiere HTTPS o localhost; para probar desde un teléfono, usa una URL HTTPS de desarrollo o un túnel HTTPS de tu elección.
+Para que otro equipo de la red abra el enlace QR, puedes configurar la IP local, por ejemplo `http://192.168.1.25:3000`, y ejecutar `npm run dev -- --hostname 0.0.0.0`. Reinicia Next.js al modificar variables. La cámara del navegador requiere HTTPS o localhost. Para probar físicamente desde el teléfono en desarrollo usa una URL HTTPS (por ejemplo un túnel de desarrollo); un hostname/IP HTTP local no suele habilitar cámara.
 
-Cuando no se define `NEXT_PUBLIC_SITE_URL`, el generador usa el origen actual del navegador, lo cual facilita probarlo en una red local. En producción configura siempre el dominio público.
+El escáner procesa solo slugs conocidos o URLs internas `/bote/{slug}` del dominio configurado. No visita URLs arbitrarias. La cámara se solicita tras una acción explícita; el QR nativo abre la ficha sin pedir permiso de cámara a la aplicación.
 
-## Probar desde un teléfono
+## Arquitectura AR
 
-1. Conecta la computadora y el teléfono a la misma red.
-2. Configura `NEXT_PUBLIC_SITE_URL` con la IP local y ejecuta `npm run dev -- --hostname 0.0.0.0`.
-3. Abre esa dirección en el teléfono. Para que el navegador permita usar la cámara, utiliza HTTPS o una URL local segura; la cámara nativa puede abrir también el QR de un despliegue público.
-4. En la página inicial toca **Escanear código QR** y permite la cámara. También puedes entrar a `/generar-qr`, seleccionar un bote y probar el QR generado.
+La ruta `/ar/bote/{slug}` carga `ARExperience` bajo demanda. Solo después de pulsar el botón se monta `ARScene`, solicita cámara trasera a MindAR y crea anclas visuales y CSS3D para cada índice del archivo compilado. `lib/ar/marker-config.ts` conserva el orden del catálogo que usa el compilador. Un panel HTML por objetivo muestra los datos de ese slug; eventos found/lost seleccionan un marcador activo y ocultan los demás. MindAR estima y actualiza la pose de la imagen, Three.js renderiza el aro en ese grupo y CSS3DRenderer proyecta el panel con la misma cámara, por lo que no es un overlay fijo. Al perder el marcador se oculta; al recuperar su imagen vuelve a seguirlo.
 
-El escáner integrado solo procesa slugs conocidos o enlaces `/bote/{slug}` del dominio configurado. Nunca abre direcciones arbitrarias que aparezcan en un QR.
+Las seis etiquetas finales están versionadas en `public/ar/labels/` como PNG imprimible (1000×1320) y SVG. `public/ar/targets/trashcan-labels.mind` se compiló con MindAR OfflineCompiler desde esos PNG exactos y los QR integrados; se sirve localmente, sin recursos de reconocimiento externos. Imprime la etiqueta completa, sin recortar ni sustituir patrones. En `/generar-qr` selecciona «Etiqueta con marcador AR» para descargar o imprimir.
 
-El lector solicita permiso solo después de pulsar el botón. Prioriza la cámara trasera y permite volver a escanear o cerrar el modal; la cámara solo funciona en HTTPS o en `localhost` según las reglas del navegador.
+Para regenerar artefactos, ejecuta `npm run ar:labels`. El script usa `@napi-rs/canvas` como implementación compatible del `canvas` opcional que el compilador offline de MindAR requiere en Node 24. El orden de `bins` debe coincidir con el orden de imágenes. Define `NEXT_PUBLIC_SITE_URL` antes de compilar para incrustar enlaces QR del dominio deseado; el recurso versionado usa `https://trashcan.eradimension.dev` por defecto.
 
 ## Agregar categorías
 
-Agrega un objeto `Bin` al arreglo de `data/bins.ts`, con un `id` único, un `slug` de URL único, `name`, `description`, `color`, `icon`, listas de aceptación y rechazo, recomendaciones y ejemplos. Los iconos disponibles son `leaf`, `bottle`, `file`, `glass`, `trash` y `zap`; para sumar un icono nuevo, amplía `BinIcon` en `types/bin.ts` y el mapa en `components/bins/BinIcon.tsx`. Las tarjetas, fichas, enlaces y el generador se alimentan del mismo catálogo.
+Agrega un objeto `Bin` a `data/bins.ts` con id y slug únicos, nombre, descripción, color, icono, listas de aceptación/rechazo, recomendaciones y ejemplos. Las tarjetas, fichas, enlaces, paneles AR y generador leen el mismo catálogo. Agrega el PNG/SVG de la nueva etiqueta regenerando los recursos con `npm run ar:labels`. Los iconos disponibles son `leaf`, `bottle`, `file`, `glass`, `trash` y `zap`; para un icono nuevo amplía `BinIcon`.
 
-## Generar e imprimir QR
+## Generar e imprimir
 
-Abre `/generar-qr`, selecciona una categoría y confirma la dirección. **Descargar PNG** guarda un QR de alta resolución. **Imprimir** genera una página sencilla con el nombre y el código del bote. Cada QR apunta a `NEXT_PUBLIC_SITE_URL/bote/{slug}`.
+En `/generar-qr` elige QR tradicional o etiqueta AR, categoría y dirección. El QR tradicional conserva la ruta existente `NEXT_PUBLIC_SITE_URL/bote/{slug}`. El formato AR incorpora esa misma URL en la etiqueta con marcador visual, color, nombre y guía de seguimiento.
+
+## Verificación física y compatibilidad
+
+1. Imprime una etiqueta AR en papel mate, completa y con buena calidad.
+2. Abre su QR nativo para llegar a `/bote/{slug}`.
+3. Pulsa **Ver en realidad aumentada**, concede permiso y apunta a toda la etiqueta a unos 25–50 cm bajo luz uniforme.
+4. Mueve el teléfono de lado, acércate/aléjate y gira ligeramente; el panel y aro deben seguir la etiqueta.
+5. Sácala del encuadre y vuelve a apuntarla para comprobar pérdida y recuperación.
+6. Sal de AR y verifica que el indicador de cámara desaparezca.
+
+La verificación automatizada no sustituye esta prueba física. Safari iOS y Chrome Android dependen de WebGL, CSS3D y permisos de cámara del navegador. La etiqueta debe estar plana, completa, nítida y sin reflejos. Ante rechazo o fallo, la ficha convencional sigue disponible.
 
 ## Despliegue en Vercel
 
-Importa el repositorio en Vercel y configura `NEXT_PUBLIC_SITE_URL` con el dominio final en las variables de entorno del proyecto. Despliega con la configuración predeterminada de Next.js. No se requieren servicios adicionales. Después del despliegue prueba una ficha compartible, el escáner en HTTPS y un QR descargado desde un teléfono.
+Conserva el proyecto existente `trashcan` y el dominio `trashcan.eradimension.dev`. Configura `NEXT_PUBLIC_SITE_URL=https://trashcan.eradimension.dev` en los entornos Vercel correspondientes y despliega con la configuración predeterminada de Next.js. Los targets y etiquetas son recursos estáticos locales; no hace falta backend ni servicio de reconocimiento. Tras desplegar prueba ficha compartible, una etiqueta QR y la prueba física completa.
