@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowDown, ArrowRight, ScanLine, Sparkles } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowDown, ArrowRight, ScanLine, Sparkles, ScanSearch } from 'lucide-react';
 import { bins } from '@/data/bins';
 import { BinCard } from '@/components/bins/BinCard';
 import { Scanner } from '@/components/scanner/Scanner';
@@ -32,6 +33,7 @@ export default function HomePage() {
         <div className="section-heading"><div><span className="eyebrow">GUÍA DE SEPARACIÓN</span><h2>Explorar tipos de residuos</h2><p>Encuentra una categoría y conoce las recomendaciones para separar mejor.</p></div><span className="category-count">{String(bins.length).padStart(2, '0')} categorías</span></div>
         <div className="bin-grid">{bins.map((bin, index) => <BinCard key={bin.id} bin={bin} index={index} />)}</div>
       </section>
+      <section className="ar-home-card"><span className="ar-home-symbol"><ScanSearch size={27} /></span><div><span className="eyebrow">UNA GUÍA QUE SIGUE LA ETIQUETA</span><h2>Apunta y aprende en realidad aumentada</h2><p>Abre la ficha de un bote y activa la cámara para ver la información anclada a una etiqueta TraShCan impresa.</p></div><Link href="/ar/bote/organicos" className="button button-outline">Probar experiencia AR <ArrowRight size={17} /></Link></section>
       <section className="home-bottom"><span className="bottom-icon"><ScanLine size={19} /></span><p>¿Tienes un bote enfrente?</p><button onClick={() => setScannerOpen(true)}>Escanéalo ahora <ArrowRight size={16} /></button></section>
       <footer className="site-footer"><span>TraShCan<span className="brand-dot">.</span></span><span>Aprender a separar también cuenta.</span><span>© {new Date().getFullYear()} TraShCan</span></footer>
       {scannerOpen && <Scanner onClose={() => setScannerOpen(false)} />}

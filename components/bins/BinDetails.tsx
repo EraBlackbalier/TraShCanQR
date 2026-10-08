@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, Check, Info, Lightbulb, X } from 'lucide-react';
+import { ArrowLeft, Check, Info, Lightbulb, ScanLine, X } from 'lucide-react';
 import type { Bin } from '@/types/bin';
 import { BinIcon } from './BinIcon';
 
@@ -39,6 +39,7 @@ export function BinDetails({ bin, compact = false, onScanAnother, onClose }: Bin
         </section>
         <p className="local-note"><Info size={16} /> Estas recomendaciones son orientativas. La aceptación de materiales puede variar según el sistema de recolección local.</p>
         <div className="detail-actions">
+          {!compact && <Link href={`/ar/bote/${bin.slug}`} className="button button-outline"><ScanLine size={18} /> Ver en realidad aumentada</Link>}
           {onScanAnother ? <button className="button button-primary" onClick={onScanAnother}>Escanear otro bote</button> : <Link href="/#escanear" className="button button-primary"><span>Escanear otro bote</span></Link>}
           {compact && onClose && <button className="button button-quiet" onClick={onClose}>Cerrar</button>}
         </div>
