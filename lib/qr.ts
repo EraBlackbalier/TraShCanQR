@@ -5,7 +5,7 @@ export type QrResolution =
   | { ok: false; reason: 'invalid' | 'unknown' | 'external' };
 
 /** Acepta solo el slug interno definido o una URL de este sitio con ruta /bote/{slug}. */
-export function resolveBinQr(rawValue: string, siteUrl?: string): QrResolution {
+export function resolveBinQr(rawValue: string, siteUrl = getPublicBaseUrl()): QrResolution {
   const value = rawValue.trim();
   if (!value || value.length > 2048) return { ok: false, reason: 'invalid' };
 
@@ -20,7 +20,6 @@ export function resolveBinQr(rawValue: string, siteUrl?: string): QrResolution {
       return { ok: false, reason: 'invalid' };
     }
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return { ok: false, reason: 'invalid' };
-    if (!siteUrl) return { ok: false, reason: 'external' };
     let configured: URL;
     try {
       configured = new URL(siteUrl);
@@ -35,12 +34,30 @@ export function resolveBinQr(rawValue: string, siteUrl?: string): QrResolution {
   return getBinBySlug(slug) ? { ok: true, binSlug: slug } : { ok: false, reason: 'unknown' };
 }
 
-export function getPublicBaseUrl(currentOrigin?: string): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (configured) return configured.replace(/\/$/, '');
-  return currentOrigin?.replace(/\/$/, '') ?? 'http://localhost:3000';
+export function getPublicBaseUrl(
+  currentOrigin?: string,
+  configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL,
+): string {
+  const candidate = configuredSiteUrl?.trim() || currentOrigin || 'http://localhost:3000';
+  try {
+    const parsed = new URL(candidate);
+    if ((parsed.protocol === 'https:' || parsed.protocol === 'http:') && !parsed.username && !parsed.password) {
+      return parsed.origin;
+    }
+  } catch {
+    // Invalid public configuration falls back to the current trusted site origin.
+  }
+  if (currentOrigin) {
+    try {
+      const parsed = new URL(currentOrigin);
+      if ((parsed.protocol === 'https:' || parsed.protocol === 'http:') && !parsed.username && !parsed.password) return parsed.origin;
+    } catch {
+      // Keep the safe localhost default below.
+    }
+  }
+  return 'http://localhost:3000';
 }
 
-export function getBinUrl(slug: string, currentOrigin?: string): string {
-  return `${getPublicBaseUrl(currentOrigin)}/bote/${encodeURIComponent(slug)}`;
+export function getBinUrl(slug: string, currentOrigin?: string, configuredSiteUrl?: string): string {
+  return `${getPublicBaseUrl(currentOrigin, configuredSiteUrl)}/bote/${encodeURIComponent(slug)}`;
 }

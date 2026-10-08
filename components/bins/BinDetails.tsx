@@ -3,7 +3,14 @@ import { ArrowLeft, Check, Info, Lightbulb, X } from 'lucide-react';
 import type { Bin } from '@/types/bin';
 import { BinIcon } from './BinIcon';
 
-export function BinDetails({ bin, compact = false, onScanAnother }: { bin: Bin; compact?: boolean; onScanAnother?: () => void }) {
+interface BinDetailsProps {
+  bin: Bin;
+  compact?: boolean;
+  onScanAnother?: () => void;
+  onClose?: () => void;
+}
+
+export function BinDetails({ bin, compact = false, onScanAnother, onClose }: BinDetailsProps) {
   return (
     <article className={`bin-details${compact ? ' bin-details-compact' : ''}`}>
       <div className="bin-detail-heading" style={{ '--bin-color': bin.color } as React.CSSProperties}>
@@ -33,7 +40,7 @@ export function BinDetails({ bin, compact = false, onScanAnother }: { bin: Bin; 
         <p className="local-note"><Info size={16} /> Estas recomendaciones son orientativas. La aceptación de materiales puede variar según el sistema de recolección local.</p>
         <div className="detail-actions">
           {onScanAnother ? <button className="button button-primary" onClick={onScanAnother}>Escanear otro bote</button> : <Link href="/#escanear" className="button button-primary"><span>Escanear otro bote</span></Link>}
-          {compact && <button className="button button-quiet" onClick={onScanAnother}>Cerrar</button>}
+          {compact && onClose && <button className="button button-quiet" onClick={onClose}>Cerrar</button>}
         </div>
       </div>
     </article>

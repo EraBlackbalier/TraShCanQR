@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bins, getBinBySlug } from '@/data/bins';
-import { getBinUrl, resolveBinQr } from '@/lib/qr';
+import { getBinUrl, getPublicBaseUrl, resolveBinQr } from '@/lib/qr';
 
 const site = 'https://trashcan.example';
 
@@ -23,9 +23,29 @@ describe('catálogo de botes', () => {
     expect(resolveBinQr('https://evil.example/bote/organicos', site)).toEqual({ ok: false, reason: 'external' });
     expect(resolveBinQr(`${site}/otro/organicos`, site)).toEqual({ ok: false, reason: 'invalid' });
     expect(resolveBinQr('javascript:alert(1)', site)).toEqual({ ok: false, reason: 'invalid' });
+    expect(resolveBinQr('https://trashcan.example.evil.test/bote/organicos', site)).toEqual({ ok: false, reason: 'external' });
+  });
+
+  it('rechaza URLs malformadas, con query o fragmento', () => {
+    expect(resolveBinQr('https://[malformed.test/bote/organicos', site)).toEqual({ ok: false, reason: 'invalid' });
+    expect(resolveBinQr(`${site}/bote/organicos?next=https://evil.test`, site)).toEqual({ ok: false, reason: 'invalid' });
+    expect(resolveBinQr(`${site}/bote/organicos#section`, site)).toEqual({ ok: false, reason: 'invalid' });
   });
 
   it('construye una URL absoluta del bote', () => {
     expect(getBinUrl('organicos', site)).toBe(`${site}/bote/organicos`);
+  });
+
+  it('usa el origen actual cuando no hay dominio configurado, igual que el generador', () => {
+    const localOrigin = 'http://192.168.1.20:3000';
+    const allowedOrigin = getPublicBaseUrl(localOrigin, '');
+    const generatedUrl = getBinUrl('organicos', localOrigin, '');
+    expect(generatedUrl).toBe(`${localOrigin}/bote/organicos`);
+    expect(resolveBinQr(generatedUrl, allowedOrigin)).toEqual({ ok: true, binSlug: 'organicos' });
+  });
+
+  it('prefiere la URL pública configurada y normaliza la ruta final', () => {
+    expect(getPublicBaseUrl('http://localhost:3000', 'https://trashcan.example/')).toBe(site);
+    expect(getBinUrl('vidrio', 'http://localhost:3000', 'https://trashcan.example/')).toBe(`${site}/bote/vidrio`);
   });
 });

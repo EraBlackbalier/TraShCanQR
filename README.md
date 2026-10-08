@@ -18,6 +18,8 @@ npm run dev
 
 Abre `http://localhost:3000`. También están disponibles `npm run typecheck`, `npm run lint`, `npm test` y `npm run build`.
 
+Para instalar exactamente las dependencias bloqueadas en `package-lock.json`, usa `npm ci`.
+
 ## Dominio de los QR
 
 Copia `.env.example` a `.env.local` y define el dominio que deben guardar los códigos:
@@ -38,6 +40,8 @@ Cuando no se define `NEXT_PUBLIC_SITE_URL`, el generador usa el origen actual de
 4. En la página inicial toca **Escanear código QR** y permite la cámara. También puedes entrar a `/generar-qr`, seleccionar un bote y probar el QR generado.
 
 El escáner integrado solo procesa slugs conocidos o enlaces `/bote/{slug}` del dominio configurado. Nunca abre direcciones arbitrarias que aparezcan en un QR.
+
+El lector solicita permiso solo después de pulsar el botón. Prioriza la cámara trasera y permite volver a escanear o cerrar el modal; la cámara solo funciona en HTTPS o en `localhost` según las reglas del navegador.
 
 ## Agregar categorías
 
