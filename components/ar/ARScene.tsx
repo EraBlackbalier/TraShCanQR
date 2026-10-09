@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { CircleHelp, LoaderCircle } from 'lucide-react';
-import type { Mesh } from 'three';
+import type { Mesh, Object3D } from 'three';
+import { AR_PANEL_DEFAULT_SCALE, clampARPanelScale } from '@/lib/ar/panel-scale';
 import type { MindARThree as MindARThreeType, MindARAnchor } from 'mind-ar/dist/mindar-image-three.prod.js';
 import { getBinBySlug } from '@/data/bins';
 import { markerTargets } from '@/lib/ar/marker-config';
@@ -77,6 +78,7 @@ async function cameraPermissionDenied() {
 export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<MindARInstance | null>(null);
+  const panelObjectRef = useRef<Object3D | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const startPromiseRef = useRef<Promise<void> | null>(null);
   const generationRef = useRef(0);
@@ -87,6 +89,11 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
   const [attempt, setAttempt] = useState(0);
   const [cameraDeviceId, setCameraDeviceId] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [panelScale, setPanelScale] = useState(AR_PANEL_DEFAULT_SCALE);
+
+  useEffect(() => {
+    panelObjectRef.current?.scale.setScalar(panelScale);
+  }, [panelScale]);
 
   const updateStatus = useCallback((next: ARStatus) => {
     statusRef.current = next;
@@ -104,6 +111,7 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
     generationRef.current += 1;
     if (sessionRef.current) disposeARSession(sessionRef.current);
     sessionRef.current = null;
+    panelObjectRef.current = null;
     cleanupRef.current?.();
     cleanupRef.current = null;
   }, []);
@@ -169,13 +177,17 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
             // CSS3DRenderer manages element.style.transform/display, so use the
             // HTML hidden attribute with an !important CSS rule for visibility.
             element.hidden = true;
-            element.style.marginLeft = '-135px';
-            element.style.marginTop = '-76px';
+            // CSS3DRenderer already centers the element with translate(-50%, -50%).
+            // Do not offset it again with margins or a separate CSS transform.
             const root = createRoot(element);
             roots.push(root);
             root.render(<ARInformationPanel bin={bin} visible={true} />);
             const object = new CSS3DObject(element);
-            object.position.set(0, 0.12, 0.015);
+            object.position.set(0, 0, 0.015);
+            // MindAR scales CSS anchors by 0.001. A 270px card at scale 1
+            // occupies only 0.27 marker units, making text unreadable on mobile.
+            object.scale.setScalar(panelScale);
+            panelObjectRef.current = object;
             cssAnchor.group.add(object);
             cssAnchor.onTargetFound = () => {
               element.hidden = false;
@@ -200,6 +212,7 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
           await mindar.start();
           if (!isCurrent()) {
             roots.forEach((root) => root.unmount());
+            panelObjectRef.current = null;
             disposeARSession(mindar);
             return;
           }
@@ -220,6 +233,7 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
             if (sessionRef.current) {
               disposeARSession(sessionRef.current);
               sessionRef.current = null;
+              panelObjectRef.current = null;
               cleanupRef.current?.();
               cleanupRef.current = null;
             }
@@ -294,6 +308,10 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
       </div>
       <ARTrackingStatus status={status} markerName={activeBin?.name} />
       <ARControls />
+      <div className="ar-panel-zoom" role="group" aria-label="Tamaño del panel de realidad aumentada">
+        <button type="button" aria-label="Aumentar panel AR" onClick={() => setPanelScale((value) => clampARPanelScale(value + 0.6))}>A+</button>
+        <button type="button" aria-label="Reducir panel AR" onClick={() => setPanelScale((value) => clampARPanelScale(value - 0.6))}>A−</button>
+      </div>
       <button className="ar-help-button" onClick={() => setHelpOpen((open) => !open)} aria-expanded={helpOpen} aria-label="Instrucciones de realidad aumentada"><CircleHelp size={20} /></button>
       {helpOpen && <aside className="ar-help-card"><strong>Cómo encontrar el marcador</strong><p>Ilumina la etiqueta, mantén el teléfono a unos 25–50 cm y muévelo despacio hasta encuadrar el diseño completo.</p></aside>}
       {failed && <ARFallback status={status} onRetry={retry} />}
