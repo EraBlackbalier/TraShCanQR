@@ -30,7 +30,7 @@ El escáner procesa solo slugs conocidos o URLs internas `/bote/{slug}` del domi
 
 ## Arquitectura AR
 
-La ruta `/ar/bote/{slug}` carga `ARExperience` bajo demanda. Solo después de pulsar el botón se monta `ARScene`, solicita cámara trasera a MindAR y crea anclas visuales y CSS3D para cada índice del archivo compilado. `lib/ar/marker-config.ts` conserva el orden del catálogo que usa el compilador. Un panel HTML por objetivo muestra los datos de ese slug; eventos found/lost seleccionan un marcador activo y ocultan los demás. MindAR estima y actualiza la pose de la imagen, Three.js renderiza el aro en ese grupo y CSS3DRenderer proyecta el panel con la misma cámara, por lo que no es un overlay fijo. Al perder el marcador se oculta; al recuperar su imagen vuelve a seguirlo.
+La ruta `/ar/bote/{slug}` carga `ARExperience` bajo demanda. Solo después de pulsar el botón se monta `ARScene`, solicita cámara trasera a MindAR y crea anclas visuales y CSS3D para cada índice del archivo compilado. `lib/ar/marker-config.ts` conserva el orden del catálogo y calibra la pose del panel a partir de la geometría de la etiqueta: su marco de 600×300 px termina 18 px antes del borde superior del QR, y se centra horizontalmente sobre él. El objeto conserva esa escala y pose en unidades del marcador; no se reposiciona con coordenadas de pantalla. Si cambia el tamaño o la posición impresa del QR en `scripts/generate-ar-labels.mjs`, actualiza también esa geometría centralizada. Un panel HTML por objetivo muestra los datos de ese slug; eventos found/lost seleccionan un marcador activo y ocultan los demás. MindAR estima y actualiza la pose de la imagen, Three.js renderiza el aro en ese grupo y CSS3DRenderer proyecta el panel con la misma cámara, por lo que no es un overlay fijo. Al detectarlo aparece suavemente, los materiales entran escalonados al alternar pestañas, y al perder el marcador vuelve al estado oculto. Se respetan preferencias de movimiento reducido.
 
 Las seis etiquetas finales están versionadas en `public/ar/labels/` como PNG imprimible (1000×1320) y SVG. `public/ar/targets/trashcan-labels.mind` se compiló con MindAR OfflineCompiler desde esos PNG exactos y los QR integrados; se sirve localmente, sin recursos de reconocimiento externos. Imprime la etiqueta completa, sin recortar ni sustituir patrones. En `/generar-qr` selecciona «Etiqueta con marcador AR» para descargar o imprimir.
 
@@ -58,15 +58,3 @@ La verificación automatizada no sustituye esta prueba física. Safari iOS y Chr
 ## Despliegue en Vercel
 
 Conserva el proyecto existente `trashcan` y el dominio `trashcan.eradimension.dev`. Configura `NEXT_PUBLIC_SITE_URL=https://trashcan.eradimension.dev` en los entornos Vercel correspondientes y despliega con la configuración predeterminada de Next.js. Los targets y etiquetas son recursos estáticos locales; no hace falta backend ni servicio de reconocimiento. Tras desplegar prueba ficha compartible, una etiqueta QR y la prueba física completa.
-
-## Modo AR único y seguimiento
-
-La interfaz de usuario usa exclusivamente realidad aumentada: las antiguas rutas `/bote/{slug}` redirigen a `/ar/bote/{slug}` y las tarjetas del inicio llevan al AR. El generador ofrece solo etiquetas AR; los QR ya impresos siguen siendo compatibles mediante la redirección.
-
-El seguimiento depende de que la etiqueta permanezca reconocible dentro del campo visual. MindAR utiliza *image tracking*, no SLAM o anclas persistentes del mundo: si el marcador sale del encuadre, el panel se oculta hasta recuperarlo. Un panel fijo a la pantalla no se presenta como AR. Cada sesión crea únicamente el ancla de la categoría elegida y oculta el HTML CSS3D hasta el evento de detección.
-
-## Escala y alineación del panel AR
-
-El panel usa una escala CSS3D inicial de 4× respecto al objeto base y conserva su transformación de marcador. El usuario puede ajustarlo con los controles A+ y A− sin perder el seguimiento. Se evitó forzar al video de MindAR a cubrir el viewport con CSS porque MindAR calcula una posición y recorte específicos para alinear la cámara con el canvas WebGL y CSS3D. El panel permanece oculto sin marcador detectado.
-
-Comprueba físicamente con Android e iOS: que la etiqueta y el anillo coincidan, que el panel se lea a 25–50 cm y que los controles de escala no desanclen el contenido.

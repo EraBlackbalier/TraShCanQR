@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bins } from '@/data/bins';
-import { getMarkerBin, getMarkerTargetIndex, markerTargets } from '@/lib/ar/marker-config';
+import { getMarkerBin, getMarkerPanelPose, getMarkerTargetIndex, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
 import { initialMarkerTrackingState, reduceMarkerTracking } from '@/lib/ar/tracking';
 
 describe('marcadores TraShCan', () => {
@@ -10,6 +10,14 @@ describe('marcadores TraShCan', () => {
     expect(getMarkerTargetIndex('vidrio')).toBe(3);
     expect(getMarkerBin(3)?.slug).toBe('vidrio');
     expect(getMarkerBin(99)).toBeUndefined();
+  });
+
+  it('alinea el borde inferior del panel encima del QR según la geometría impresa', () => {
+    const pose = getMarkerPanelPose();
+    const panelBottomInImagePixels = markerLabelGeometry.height / 2 - pose.y * markerLabelGeometry.width + markerLabelGeometry.panelHeight * markerLabelGeometry.panelScale / 2;
+    expect(panelBottomInImagePixels).toBeCloseTo(markerLabelGeometry.qrCardTop - markerLabelGeometry.panelGap, 8);
+    expect(pose.x).toBe(0);
+    expect(pose.z).toBeGreaterThan(0);
   });
 
   it('mantiene un marcador activo y recupera otro al perder seguimiento', () => {
