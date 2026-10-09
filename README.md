@@ -64,3 +64,9 @@ Conserva el proyecto existente `trashcan` y el dominio `trashcan.eradimension.de
 La interfaz de usuario usa exclusivamente realidad aumentada: las antiguas rutas `/bote/{slug}` redirigen a `/ar/bote/{slug}` y las tarjetas del inicio llevan al AR. El generador ofrece solo etiquetas AR; los QR ya impresos siguen siendo compatibles mediante la redirección.
 
 El seguimiento depende de que la etiqueta permanezca reconocible dentro del campo visual. MindAR utiliza *image tracking*, no SLAM o anclas persistentes del mundo: si el marcador sale del encuadre, el panel se oculta hasta recuperarlo. Un panel fijo a la pantalla no se presenta como AR. Cada sesión crea únicamente el ancla de la categoría elegida y oculta el HTML CSS3D hasta el evento de detección.
+
+## Escala y alineación del panel AR
+
+El panel usa una escala CSS3D inicial de 4× respecto al objeto base y conserva su transformación de marcador. El usuario puede ajustarlo con los controles A+ y A− sin perder el seguimiento. Se evitó forzar al video de MindAR a cubrir el viewport con CSS porque MindAR calcula una posición y recorte específicos para alinear la cámara con el canvas WebGL y CSS3D. El panel permanece oculto sin marcador detectado.
+
+Comprueba físicamente con Android e iOS: que la etiqueta y el anillo coincidan, que el panel se lea a 25–50 cm y que los controles de escala no desanclen el contenido.
