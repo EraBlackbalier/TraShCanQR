@@ -14,7 +14,7 @@ export function ARInformationPanel({ bin, visible }: { bin: Bin; visible: boolea
         <button type="button" role="tab" aria-selected={mode === 'accepted'} className={mode === 'accepted' ? 'selected accepted' : ''} onClick={() => setMode('accepted')}><Check size={15} /> Sí puedes</button>
         <button type="button" role="tab" aria-selected={mode === 'rejected'} className={mode === 'rejected' ? 'selected rejected' : ''} onClick={() => setMode('rejected')}><X size={15} /> No puedes</button>
       </div>
-      <ul className={`ar-anchor-items ${mode}`}>
+      <ul key={mode} className={`ar-anchor-items ${mode}`}>
         {items.slice(0, 4).map((item) => <li key={item}><span>{mode === 'accepted' ? <Check size={12} /> : <X size={12} />}</span>{item}</li>)}
       </ul>
       <footer className="ar-anchor-foot"><Leaf size={13} /> Reglas orientativas · Consulta tu recolección local</footer>

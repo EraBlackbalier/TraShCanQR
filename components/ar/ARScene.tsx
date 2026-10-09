@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { CircleHelp, LoaderCircle } from 'lucide-react';
-import type { Mesh, Object3D } from 'three';
-import { AR_PANEL_DEFAULT_SCALE, clampARPanelScale } from '@/lib/ar/panel-scale';
+import type { Group, Mesh } from 'three';
 import type { MindARThree as MindARThreeType, MindARAnchor } from 'mind-ar/dist/mindar-image-three.prod.js';
 import { getBinBySlug } from '@/data/bins';
-import { markerTargets } from '@/lib/ar/marker-config';
+import { getMarkerPanelPose, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
 import { disposeARSession, initialMarkerTrackingState, reduceMarkerTracking } from '@/lib/ar/tracking';
 import type { ARSessionLike } from '@/lib/ar/tracking';
 import { ARControls } from './ARControls';
@@ -40,7 +39,7 @@ function constructMindAR(MindAR: typeof MindARThreeType, container: HTMLElement,
     mindar = new MindAR({
       container,
       imageTargetSrc: '/ar/targets/trashcan-labels.mind',
-      maxTrack: 1,
+      maxTrack: 6,
       uiLoading: 'no',
       uiScanning: 'no',
       uiError: 'no',
@@ -78,7 +77,6 @@ async function cameraPermissionDenied() {
 export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<MindARInstance | null>(null);
-  const panelObjectRef = useRef<Object3D | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const startPromiseRef = useRef<Promise<void> | null>(null);
   const generationRef = useRef(0);
@@ -89,11 +87,6 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
   const [attempt, setAttempt] = useState(0);
   const [cameraDeviceId, setCameraDeviceId] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [panelScale, setPanelScale] = useState(AR_PANEL_DEFAULT_SCALE);
-
-  useEffect(() => {
-    panelObjectRef.current?.scale.setScalar(panelScale);
-  }, [panelScale]);
 
   const updateStatus = useCallback((next: ARStatus) => {
     statusRef.current = next;
@@ -111,7 +104,6 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
     generationRef.current += 1;
     if (sessionRef.current) disposeARSession(sessionRef.current);
     sessionRef.current = null;
-    panelObjectRef.current = null;
     cleanupRef.current?.();
     cleanupRef.current = null;
   }, []);
@@ -149,7 +141,7 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
           mindar.renderer.domElement.classList.add('ar-webgl-renderer');
           mindar.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
           const roots: Root[] = [];
-          const decorations: Mesh[] = [];
+          const decorations: Group[] = [];
           let frame = 0;
           const resize = () => { if (isCurrent()) mindar.resize(); };
           const removeViewListeners = () => {
@@ -167,34 +159,26 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
           };
           cleanupRef.current = () => { removeViewListeners(); removeResizeListeners(); };
 
-          // A QR selects one category. Never instantiate panels for other markers.
-          for (const target of markerTargets.filter((entry) => entry.slug === slug)) {
+          for (const target of markerTargets) {
             const bin = getBinBySlug(target.slug);
             if (!bin) continue;
             const cssAnchor = mindar.addCSSAnchor(target.targetIndex);
             const element = document.createElement('div');
             element.className = 'ar-anchor-root';
-            // CSS3DRenderer manages element.style.transform/display, so use the
-            // HTML hidden attribute with an !important CSS rule for visibility.
-            element.hidden = true;
-            // CSS3DRenderer already centers the element with translate(-50%, -50%).
-            // Do not offset it again with margins or a separate CSS transform.
+            element.style.width = `${markerLabelGeometry.panelWidth}px`;
+            element.style.height = `${markerLabelGeometry.panelHeight}px`;
             const root = createRoot(element);
             roots.push(root);
-            root.render(<ARInformationPanel bin={bin} visible={true} />);
+            root.render(<ARInformationPanel bin={bin} visible={false} />);
             const object = new CSS3DObject(element);
-            object.position.set(0, 0, 0.015);
-            // MindAR scales CSS anchors by 0.001. A 270px card at scale 1
-            // occupies only 0.27 marker units, making text unreadable on mobile.
-            object.scale.setScalar(panelScale);
-            panelObjectRef.current = object;
+            const pose = getMarkerPanelPose();
+            object.position.set(pose.x, pose.y, pose.z);
+            object.scale.setScalar(markerLabelGeometry.panelScale);
             cssAnchor.group.add(object);
             cssAnchor.onTargetFound = () => {
-              element.hidden = false;
               updateTracking({ type: 'found', slug: target.slug });
             };
             cssAnchor.onTargetLost = () => {
-              element.hidden = true;
               updateTracking({ type: 'lost', slug: target.slug });
             };
 
@@ -205,14 +189,12 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
             );
             ring.position.z = 0.025;
             visualAnchor.group.add(ring);
-            // Animate only the decoration, never rotate MindAR's tracked anchor.
-            decorations.push(ring);
+            decorations.push(visualAnchor.group);
           }
 
           await mindar.start();
           if (!isCurrent()) {
             roots.forEach((root) => root.unmount());
-            panelObjectRef.current = null;
             disposeARSession(mindar);
             return;
           }
@@ -220,7 +202,7 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
           const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
           const render = () => {
             if (!isCurrent()) return;
-            if (!reducedMotion) decorations.forEach((mesh) => { if (mesh.visible) mesh.rotation.z += 0.0018; });
+            if (!reducedMotion) decorations.forEach((group) => { if (group.visible) group.rotation.z += 0.0018; });
             mindar.renderer.render(mindar.scene, mindar.camera);
             mindar.cssRenderer.render(mindar.cssScene, mindar.camera);
             frame = window.requestAnimationFrame(render);
@@ -233,7 +215,6 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
             if (sessionRef.current) {
               disposeARSession(sessionRef.current);
               sessionRef.current = null;
-              panelObjectRef.current = null;
               cleanupRef.current?.();
               cleanupRef.current = null;
             }
@@ -290,7 +271,23 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
     };
     // A retry remounts the tracker; catalog content and handlers are module-stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attempt, cameraDeviceId, disposeCurrent, updateStatus, updateTracking, slug]);
+  }, [attempt, cameraDeviceId, disposeCurrent, updateStatus, updateTracking]);
+
+  useEffect(() => {
+    for (const target of markerTargets) {
+      const bin = getBinBySlug(target.slug);
+      if (!bin) continue;
+      const cssAnchor = sessionRef.current?.anchors.find((anchor) => anchor.targetIndex === target.targetIndex && anchor.group.children.some((child) => 'element' in child));
+      const object = cssAnchor?.group.children.find((child) => 'element' in child) as (import('three').Object3D & { element?: HTMLElement }) | undefined;
+      const root = object?.element;
+      if (root) {
+        // React owns the panel; the CSS3D object keeps its transform tied to this image target.
+        const active = tracking.activeSlug === target.slug;
+        root.classList.toggle('is-tracked', active);
+        root.style.display = active ? 'block' : 'none';
+      }
+    }
+  }, [tracking.activeSlug]);
 
   const retry = () => {
     if (sessionRef.current) disposeCurrent();
@@ -307,14 +304,10 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
         {status === 'loading' && <div className="ar-camera-placeholder"><LoaderCircle className="ar-spin" size={24} /><span>Preparando cámara…</span></div>}
       </div>
       <ARTrackingStatus status={status} markerName={activeBin?.name} />
-      <ARControls />
-      <div className="ar-panel-zoom" role="group" aria-label="Tamaño del panel de realidad aumentada">
-        <button type="button" aria-label="Aumentar panel AR" onClick={() => setPanelScale((value) => clampARPanelScale(value + 0.6))}>A+</button>
-        <button type="button" aria-label="Reducir panel AR" onClick={() => setPanelScale((value) => clampARPanelScale(value - 0.6))}>A−</button>
-      </div>
+      <ARControls slug={slug} />
       <button className="ar-help-button" onClick={() => setHelpOpen((open) => !open)} aria-expanded={helpOpen} aria-label="Instrucciones de realidad aumentada"><CircleHelp size={20} /></button>
       {helpOpen && <aside className="ar-help-card"><strong>Cómo encontrar el marcador</strong><p>Ilumina la etiqueta, mantén el teléfono a unos 25–50 cm y muévelo despacio hasta encuadrar el diseño completo.</p></aside>}
-      {failed && <ARFallback status={status} onRetry={retry} />}
+      {failed && <ARFallback status={status} slug={slug} onRetry={retry} />}
       <div className="ar-screen-reader" aria-live="polite">{activeBin ? `Información anclada a ${activeBin.name}` : status === 'lost' ? 'Seguimiento perdido. Busca la etiqueta de nuevo.' : ''}</div>
       <button className="ar-session-exit" onClick={onExit}>Salir de la realidad aumentada</button>
     </section>
