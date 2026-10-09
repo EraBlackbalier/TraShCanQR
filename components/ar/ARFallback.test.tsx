@@ -21,10 +21,10 @@ describe('estados y alternativa de realidad aumentada', () => {
     expect(screen.getByRole('status').textContent).toContain(message);
   });
 
-  it('mantiene un enlace a la ficha tradicional ante un fallo de cámara', () => {
-    render(<ARFallback status="denied" slug="vidrio" onRetry={() => undefined} />);
+  it('mantiene una salida hacia el selector AR ante un fallo de cámara', () => {
+    render(<ARFallback status="denied" onRetry={() => undefined} />);
     expect(screen.getByRole('alert').textContent).toContain('permite el acceso a la cámara');
-    expect(screen.getByRole('link', { name: 'Ver ficha tradicional' }).getAttribute('href')).toBe('/bote/vidrio');
+    expect(screen.getByRole('link', { name: 'Elegir otro bote' }).getAttribute('href')).toBe('/');
     expect(screen.getByRole('button', { name: 'Intentar de nuevo' })).toBeTruthy();
   });
 });

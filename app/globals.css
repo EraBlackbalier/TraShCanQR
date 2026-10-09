@@ -18,3 +18,7 @@
 @media(max-width:700px){.ar-home-card{margin:0 18px 30px;padding:19px;grid-template-columns:auto 1fr;gap:12px}.ar-home-card h2{font-size:18px}.ar-home-card p{font-size:11px}.ar-home-card .button{grid-column:1/-1;justify-content:center}.ar-control-help{font-size:9px;padding:0 8px}.ar-anchor-root,.ar-anchor-card{width:230px}.ar-anchor-card{padding:10px}.ar-anchor-heading strong{font-size:13px}.ar-anchor-items li{font-size:9px}.ar-session-exit{bottom:max(74px,calc(env(safe-area-inset-bottom) + 74px))}}
 @media(max-width:380px){.ar-controls{left:9px;right:9px}.ar-control-help{max-width:155px}.ar-control-button{padding:0 9px}.ar-anchor-root,.ar-anchor-card{width:205px}.ar-anchor-heading strong{font-size:12px}}
 @media print{.print-card.label-preview{width:100%;max-width:none;min-height:100vh;border-radius:0;box-shadow:none}.ar-label-preview{width:auto;height:96vh;max-width:100%;object-fit:contain}}
+
+/* CSS3DRenderer may alter inline display during a frame. Hidden markers must stay hidden. */
+.ar-stage .ar-anchor-root[hidden]{display:none!important}
+.home-bottom a{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--green);font-size:12px}

@@ -58,3 +58,9 @@ La verificación automatizada no sustituye esta prueba física. Safari iOS y Chr
 ## Despliegue en Vercel
 
 Conserva el proyecto existente `trashcan` y el dominio `trashcan.eradimension.dev`. Configura `NEXT_PUBLIC_SITE_URL=https://trashcan.eradimension.dev` en los entornos Vercel correspondientes y despliega con la configuración predeterminada de Next.js. Los targets y etiquetas son recursos estáticos locales; no hace falta backend ni servicio de reconocimiento. Tras desplegar prueba ficha compartible, una etiqueta QR y la prueba física completa.
+
+## Modo AR único y seguimiento
+
+La interfaz de usuario usa exclusivamente realidad aumentada: las antiguas rutas `/bote/{slug}` redirigen a `/ar/bote/{slug}` y las tarjetas del inicio llevan al AR. El generador ofrece solo etiquetas AR; los QR ya impresos siguen siendo compatibles mediante la redirección.
+
+El seguimiento depende de que la etiqueta permanezca reconocible dentro del campo visual. MindAR utiliza *image tracking*, no SLAM o anclas persistentes del mundo: si el marcador sale del encuadre, el panel se oculta hasta recuperarlo. Un panel fijo a la pantalla no se presenta como AR. Cada sesión crea únicamente el ancla de la categoría elegida y oculta el HTML CSS3D hasta el evento de detección.
