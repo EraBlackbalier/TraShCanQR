@@ -1,5 +1,4 @@
-import { notFound } from 'next/navigation';
-import { BinDetails } from '@/components/bins/BinDetails';
+import { notFound, redirect } from 'next/navigation';
 import { bins, getBinBySlug } from '@/data/bins';
 
 export function generateStaticParams() {
@@ -16,5 +15,6 @@ export default async function BinPage({ params }: { params: Promise<{ slug: stri
   const { slug } = await params;
   const bin = getBinBySlug(slug);
   if (!bin) notFound();
-  return <main className="detail-page"><BinDetails bin={bin} /></main>;
+  // Keep previously printed QR codes working, but open only the AR experience.
+  redirect(`/ar/bote/${bin.slug}`);
 }
