@@ -74,7 +74,7 @@ async function cameraPermissionDenied() {
   }
 }
 
-export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) {
+export function ARScene({ onExit }: { onExit: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<MindARInstance | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -304,10 +304,10 @@ export function ARScene({ slug, onExit }: { slug: string; onExit: () => void }) 
         {status === 'loading' && <div className="ar-camera-placeholder"><LoaderCircle className="ar-spin" size={24} /><span>Preparando cámara…</span></div>}
       </div>
       <ARTrackingStatus status={status} markerName={activeBin?.name} />
-      <ARControls slug={slug} />
+      <ARControls />
       <button className="ar-help-button" onClick={() => setHelpOpen((open) => !open)} aria-expanded={helpOpen} aria-label="Instrucciones de realidad aumentada"><CircleHelp size={20} /></button>
       {helpOpen && <aside className="ar-help-card"><strong>Cómo encontrar el marcador</strong><p>Ilumina la etiqueta, mantén el teléfono a unos 25–50 cm y muévelo despacio hasta encuadrar el diseño completo.</p></aside>}
-      {failed && <ARFallback status={status} slug={slug} onRetry={retry} />}
+      {failed && <ARFallback status={status} onRetry={retry} />}
       <div className="ar-screen-reader" aria-live="polite">{activeBin ? `Información anclada a ${activeBin.name}` : status === 'lost' ? 'Seguimiento perdido. Busca la etiqueta de nuevo.' : ''}</div>
       <button className="ar-session-exit" onClick={onExit}>Salir de la realidad aumentada</button>
     </section>

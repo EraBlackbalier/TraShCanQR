@@ -20,5 +20,5 @@ export default async function ARBinPage({ params }: { params: Promise<{ slug: st
   const { slug } = await params;
   const bin = getBinBySlug(slug);
   if (!bin) notFound();
-  return <ARExperience slug={slug} name={bin.name} />;
+  return <ARExperience name={bin.name} />;
 }

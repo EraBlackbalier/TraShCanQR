@@ -9,9 +9,9 @@ const ARScene = dynamic(() => import('./ARScene').then((module) => module.ARScen
   loading: () => <div className="ar-loading-screen" role="status">Preparando recursos locales de realidad aumentada…</div>,
 });
 
-export function ARExperience({ slug, name }: { slug: string; name: string }) {
+export function ARExperience({ name }: { name: string }) {
   const [active, setActive] = useState(false);
-  if (active) return <ARScene slug={slug} onExit={() => setActive(false)} />;
+  if (active) return <ARScene onExit={() => setActive(false)} />;
 
   return (
     <main className="ar-entry">
