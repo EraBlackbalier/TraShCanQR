@@ -25,6 +25,7 @@ export function QrGenerator() {
           <p className="form-hint">Imprime la etiqueta sin recortar ni deformar su patrón. La cámara necesita HTTPS y el marcador visible para mantener el seguimiento espacial.</p>
           <div className="generator-actions">
             <a className="button button-primary" href={`/ar/labels/${slug}.png`} download={`trashcan-ar-${slug}.png`}><Download size={18} /> Descargar etiqueta</a>
+            <a className="button button-outline" href="/ar/labels/hoja-etiquetas.pdf" download="trashcan-etiquetas-a4.pdf"><Download size={18} /> Hoja PDF con seis etiquetas</a>
             <button className="button button-outline" onClick={() => window.print()}><Printer size={18} /> Imprimir</button>
           </div>
         </section>

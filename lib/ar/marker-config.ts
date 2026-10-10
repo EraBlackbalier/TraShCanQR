@@ -1,23 +1,16 @@
-import { bins, getBinBySlug } from '@/data/bins';
+import { bins, getBinById } from '@/data/bins';
+import { markerLabelGeometry } from '@/lib/ar/label-geometry';
 
 /** El orden se conserva al compilar public/ar/targets/trashcan-labels.mind. */
 export const markerTargets = bins.map((bin, targetIndex) => ({
+  targetId: bin.id,
   targetIndex,
   slug: bin.slug,
   image: `/ar/labels/${bin.slug}.png`,
 }));
 
-/** Geometría de scripts/generate-ar-labels.mjs, en píxeles de la imagen objetivo. */
-export const markerLabelGeometry = {
-  width: 1000,
-  height: 1320,
-  qrCardTop: 800,
-  panelWidth: 600,
-  panelHeight: 300,
-  panelScale: 1.15,
-  panelGap: 18,
-  panelDepth: 0.025,
-} as const;
+/** Geometría importada de la misma fuente que usan el generador y el target impreso. */
+export { markerLabelGeometry };
 
 /** CSS3D de MindAR usa 1 CSS px = 0.001 unidades del marcador (ancho = 1). */
 export function getMarkerPanelPose() {
@@ -35,7 +28,11 @@ export function getMarkerTargetIndex(slug: string): number | undefined {
   return markerTargets.find((target) => target.slug === slug)?.targetIndex;
 }
 
+export function getMarkerTarget(slug: string) {
+  return markerTargets.find((target) => target.slug === slug);
+}
+
 export function getMarkerBin(targetIndex: number) {
   const target = markerTargets.find((item) => item.targetIndex === targetIndex);
-  return target ? getBinBySlug(target.slug) : undefined;
+  return target ? getBinById(target.targetId) : undefined;
 }

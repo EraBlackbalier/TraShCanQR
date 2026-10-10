@@ -58,3 +58,9 @@ La verificación automatizada no sustituye esta prueba física. Safari iOS y Chr
 ## Despliegue en Vercel
 
 Conserva el proyecto existente `trashcan` y el dominio `trashcan.eradimension.dev`. Configura `NEXT_PUBLIC_SITE_URL=https://trashcan.eradimension.dev` en los entornos Vercel correspondientes y despliega con la configuración predeterminada de Next.js. Los targets y etiquetas son recursos estáticos locales; no hace falta backend ni servicio de reconocimiento. Tras desplegar prueba ficha compartible, una etiqueta QR y la prueba física completa.
+
+## Paneles y marcadores actualizados
+
+El panel visible se renderiza en un grupo CSS3D hermano del ancla detectora. El probe oculto conserva la notificación de MindAR; el grupo visible copia la matriz real del marcador durante cada actualización válida. Al perder el target, conserva la última pose durante su animación de salida de 240 ms y se oculta al terminar `animationend`; al recuperarlo retoma la matriz. Una sola categoría queda seleccionada, los callbacks se validan contra la generación de sesión y el reductor ignora slugs que no están en el catálogo.
+
+Las tarjetas llevan ilustraciones SVG animadas de las seis categorías y el catálogo sigue siendo su única fuente de texto. Las animaciones empiezan con el tracking válido y se detienen con `prefers-reduced-motion`. `npm run ar:labels` produce las etiquetas SVG/PNG, una hoja A4 `public/ar/labels/hoja-etiquetas.pdf` y el `.mind` de los seis PNG en el orden del catálogo. El QR sigue apuntando a `/bote/{slug}`; conserva la zona silenciosa para escaneo y el marco QR ocupa la misma posición de referencia usada para anclar el panel.

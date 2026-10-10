@@ -6,8 +6,9 @@ import { CircleHelp, LoaderCircle } from 'lucide-react';
 import type { Group, Mesh } from 'three';
 import type { MindARThree as MindARThreeType, MindARAnchor } from 'mind-ar/dist/mindar-image-three.prod.js';
 import { getBinBySlug } from '@/data/bins';
-import { getMarkerPanelPose, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
-import { disposeARSession, initialMarkerTrackingState, reduceMarkerTracking } from '@/lib/ar/tracking';
+import { getMarkerBin, getMarkerPanelPose, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
+import { syncPanelAnchorPose } from '@/lib/ar/panel-anchor';
+import { disposeARSession, finishMarkerPanelExit, initialMarkerTrackingState, isCurrentARSession, nextMarkerPanelPhase, reduceMarkerTracking } from '@/lib/ar/tracking';
 import type { ARSessionLike } from '@/lib/ar/tracking';
 import { ARControls } from './ARControls';
 import { ARFallback } from './ARFallback';
@@ -77,6 +78,7 @@ async function cameraPermissionDenied() {
 export function ARScene({ onExit }: { onExit: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<MindARInstance | null>(null);
+  const panelElementsRef = useRef(new Map<number, HTMLElement>());
   const cleanupRef = useRef<(() => void) | null>(null);
   const startPromiseRef = useRef<Promise<void> | null>(null);
   const generationRef = useRef(0);
@@ -118,14 +120,15 @@ export function ARScene({ onExit }: { onExit: () => void }) {
       }
       if (cancelled || document.hidden || sessionRef.current) return;
       const generation = ++generationRef.current;
-      const isCurrent = () => !cancelled && generationRef.current === generation;
+      const isCurrent = () => isCurrentARSession(generation, generationRef.current, cancelled);
 
       const run = async () => {
         const container = containerRef.current;
         if (!container) return;
         updateStatus('loading');
         trackingRef.current = initialMarkerTrackingState;
-        dispatch({ type: 'lost', slug: tracking.activeSlug ?? '' });
+        dispatch({ type: 'reset' });
+        panelElementsRef.current.clear();
         try {
           const [{ MindARThree }, THREE, { CSS3DObject }] = await Promise.all([
             import('mind-ar/dist/mindar-image-three.prod.js'),
@@ -142,12 +145,17 @@ export function ARScene({ onExit }: { onExit: () => void }) {
           mindar.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
           const roots: Root[] = [];
           const decorations: Group[] = [];
+          const panelObjects: Group[] = [];
+          const animationListeners = new Map<HTMLElement, (event: AnimationEvent) => void>();
           let frame = 0;
           const resize = () => { if (isCurrent()) mindar.resize(); };
           const removeViewListeners = () => {
             if (frame) window.cancelAnimationFrame(frame);
             window.removeEventListener('orientationchange', resize);
             window.visualViewport?.removeEventListener('resize', resize);
+            panelElementsRef.current.clear();
+            panelObjects.forEach((object) => object.removeFromParent());
+            animationListeners.forEach((listener, element) => element.removeEventListener('animationend', listener));
             roots.forEach((root) => root.unmount());
             decorations.forEach((group) => group.traverse((object) => {
               const mesh = object as Mesh;
@@ -160,25 +168,53 @@ export function ARScene({ onExit }: { onExit: () => void }) {
           cleanupRef.current = () => { removeViewListeners(); removeResizeListeners(); };
 
           for (const target of markerTargets) {
-            const bin = getBinBySlug(target.slug);
+            const bin = getMarkerBin(target.targetIndex);
             if (!bin) continue;
             const cssAnchor = mindar.addCSSAnchor(target.targetIndex);
+            // MindAR toggles this probe's visibility every frame. Keep the actual panel in a
+            // sibling CSS3D group so its state and exit animation cannot be overwritten.
+            const probeElement = document.createElement('div');
+            probeElement.setAttribute('aria-hidden', 'true');
+            const probe = new CSS3DObject(probeElement);
+            probe.visible = false;
+            cssAnchor.group.add(probe);
+
             const element = document.createElement('div');
             element.className = 'ar-anchor-root';
             element.style.width = `${markerLabelGeometry.panelWidth}px`;
             element.style.height = `${markerLabelGeometry.panelHeight}px`;
+            panelElementsRef.current.set(target.targetIndex, element);
+            const onAnimationEnd = (event: AnimationEvent) => {
+              if (event.target !== element.firstElementChild) return;
+              const currentPhase = element.classList.contains('is-tracked') ? 'tracked' : element.classList.contains('is-leaving') ? 'leaving' : 'hidden';
+              const phase = finishMarkerPanelExit(currentPhase, event.animationName);
+              element.classList.toggle('is-leaving', phase === 'leaving');
+            };
+            animationListeners.set(element, onAnimationEnd);
+            element.addEventListener('animationend', onAnimationEnd);
             const root = createRoot(element);
             roots.push(root);
-            root.render(<ARInformationPanel bin={bin} visible={false} />);
+            root.render(<ARInformationPanel bin={bin} />);
             const object = new CSS3DObject(element);
             const pose = getMarkerPanelPose();
             object.position.set(pose.x, pose.y, pose.z);
             object.scale.setScalar(markerLabelGeometry.panelScale);
-            cssAnchor.group.add(object);
+            const panelAnchor = new THREE.Group();
+            panelAnchor.matrixAutoUpdate = false;
+            panelAnchor.matrix.copy(cssAnchor.group.matrix);
+            panelAnchor.add(object);
+            mindar.cssScene.add(panelAnchor);
+            panelObjects.push(panelAnchor);
+            cssAnchor.onTargetUpdate = () => {
+              if (!isCurrent()) return;
+              if (syncPanelAnchorPose(panelAnchor.matrix, cssAnchor.group.matrix, cssAnchor.visible)) panelAnchor.matrixWorldNeedsUpdate = true;
+            };
             cssAnchor.onTargetFound = () => {
+              if (!isCurrent()) return;
               updateTracking({ type: 'found', slug: target.slug });
             };
             cssAnchor.onTargetLost = () => {
+              if (!isCurrent()) return;
               updateTracking({ type: 'lost', slug: target.slug });
             };
 
@@ -270,20 +306,18 @@ export function ARScene({ onExit }: { onExit: () => void }) {
       disposeCurrent();
     };
     // A retry remounts the tracker; catalog content and handlers are module-stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt, cameraDeviceId, disposeCurrent, updateStatus, updateTracking]);
 
   useEffect(() => {
     for (const target of markerTargets) {
-      const bin = getBinBySlug(target.slug);
-      if (!bin) continue;
-      const cssAnchor = sessionRef.current?.anchors.find((anchor) => anchor.targetIndex === target.targetIndex && anchor.group.children.some((child) => 'element' in child));
-      const object = cssAnchor?.group.children.find((child) => 'element' in child) as (import('three').Object3D & { element?: HTMLElement }) | undefined;
-      const root = object?.element;
+      const root = panelElementsRef.current.get(target.targetIndex);
       if (root) {
-        // React owns the panel; the CSS3D object keeps its transform tied to this image target.
+        // Keep presentation tied to one explicit target and reject every stale/hidden category.
         const active = tracking.activeSlug === target.slug;
-        root.classList.toggle('is-tracked', active);
+        const previousPhase = root.classList.contains('is-tracked') ? 'tracked' : root.classList.contains('is-leaving') ? 'leaving' : 'hidden';
+        const phase = nextMarkerPanelPhase(previousPhase, active);
+        root.classList.toggle('is-tracked', phase === 'tracked');
+        root.classList.toggle('is-leaving', phase === 'leaving');
       }
     }
   }, [tracking.activeSlug]);
@@ -291,7 +325,7 @@ export function ARScene({ onExit }: { onExit: () => void }) {
   const retry = () => {
     if (sessionRef.current) disposeCurrent();
     trackingRef.current = initialMarkerTrackingState;
-    dispatch({ type: 'lost', slug: tracking.activeSlug ?? '' });
+    dispatch({ type: 'reset' });
     setAttempt((value) => value + 1);
   };
   const activeBin = tracking.activeSlug ? getBinBySlug(tracking.activeSlug) : undefined;

@@ -4,6 +4,8 @@ declare module 'mind-ar/dist/mindar-image-three.prod.js' {
   export interface MindARAnchor {
     group: Group;
     targetIndex: number;
+    /** Runtime tracking flag exposed by MindAR 1.2.5. */
+    visible: boolean;
     onTargetFound: (() => void) | null;
     onTargetLost: (() => void) | null;
     onTargetUpdate: (() => void) | null;
