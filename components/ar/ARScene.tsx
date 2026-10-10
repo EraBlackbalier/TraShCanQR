@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { CircleHelp, LoaderCircle } from 'lucide-react';
-import type { Group, Mesh } from 'three';
+import type { Group } from 'three';
 import type { MindARThree as MindARThreeType, MindARAnchor } from 'mind-ar/dist/mindar-image-three.prod.js';
 import { getBinBySlug } from '@/data/bins';
-import { getMarkerBin, getMarkerCSSPanelPose, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
+import { getMarkerBin, getMarkerCSSPanelPose, getMarkerQRPoint, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
 import { fitPanelToViewport, syncPanelAnchorPose } from '@/lib/ar/panel-anchor';
 import { disposeARSession, finishMarkerPanelExit, initialMarkerTrackingState, isCurrentARSession, nextMarkerPanelPhase, reduceMarkerTracking } from '@/lib/ar/tracking';
 import type { ARSessionLike } from '@/lib/ar/tracking';
@@ -45,9 +45,9 @@ function constructMindAR(MindAR: typeof MindARThreeType, container: HTMLElement,
       uiScanning: 'no',
       uiError: 'no',
       warmupTolerance: 5,
-      missTolerance: 8,
-      filterMinCF: 0.0005,
-      filterBeta: 0.12,
+      missTolerance: 3,
+      // MindAR 1.2.5 defaults use milliseconds: 0.001 cutoff and beta 1000.
+      // Keep its adaptive filter instead of adding distance/orientation lag.
       ...(environmentDeviceId ? { environmentDeviceId } : {}),
     }) as MindARInstance;
   } finally {
@@ -79,6 +79,7 @@ export function ARScene({ onExit }: { onExit: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<MindARInstance | null>(null);
   const panelElementsRef = useRef(new Map<number, HTMLElement>());
+  const qrPointsRef = useRef(new Map<number, HTMLElement>());
   const cleanupRef = useRef<(() => void) | null>(null);
   const startPromiseRef = useRef<Promise<void> | null>(null);
   const generationRef = useRef(0);
@@ -97,6 +98,10 @@ export function ARScene({ onExit }: { onExit: () => void }) {
 
   const updateTracking = useCallback((action: { type: 'found' | 'lost'; slug: string }) => {
     trackingRef.current = reduceMarkerTracking(trackingRef.current, action);
+    for (const target of markerTargets) {
+      const point = qrPointsRef.current.get(target.targetIndex);
+      if (point) point.hidden = trackingRef.current.activeSlug !== target.slug;
+    }
     // Apply selection before React effects/rendering so an old exit cannot overlap a new target.
     for (const target of markerTargets) {
       const element = panelElementsRef.current.get(target.targetIndex);
@@ -140,6 +145,7 @@ export function ARScene({ onExit }: { onExit: () => void }) {
         trackingRef.current = initialMarkerTrackingState;
         dispatch({ type: 'reset' });
         panelElementsRef.current.clear();
+        qrPointsRef.current.clear();
         try {
           const [{ MindARThree }, THREE, { CSS3DObject }] = await Promise.all([
             import('mind-ar/dist/mindar-image-three.prod.js'),
@@ -155,7 +161,6 @@ export function ARScene({ onExit }: { onExit: () => void }) {
           mindar.renderer.domElement.classList.add('ar-webgl-renderer');
           mindar.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
           const roots: Root[] = [];
-          const decorations: Group[] = [];
           const panelObjects: Group[] = [];
           const animationListeners = new Map<HTMLElement, (event: AnimationEvent) => void>();
           let frame = 0;
@@ -165,16 +170,10 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             window.removeEventListener('orientationchange', resize);
             window.visualViewport?.removeEventListener('resize', resize);
             panelElementsRef.current.clear();
+            qrPointsRef.current.clear();
             panelObjects.forEach((object) => object.removeFromParent());
             animationListeners.forEach((listener, element) => element.removeEventListener('animationend', listener));
             roots.forEach((root) => root.unmount());
-            decorations.forEach((group) => group.traverse((object) => {
-              const mesh = object as Mesh;
-              mesh.geometry?.dispose();
-              const material = mesh.material;
-              if (Array.isArray(material)) material.forEach((item) => item.dispose());
-              else material?.dispose();
-            }));
           };
           cleanupRef.current = () => { removeViewListeners(); removeResizeListeners(); };
 
@@ -216,6 +215,16 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             panelAnchor.matrixAutoUpdate = false;
             panelAnchor.matrix.copy(cssAnchor.group.matrix);
             panelAnchor.add(object);
+            const qrPoint = getMarkerQRPoint();
+            const pointElement = document.createElement('div');
+            pointElement.className = 'ar-qr-point';
+            pointElement.hidden = true;
+            pointElement.setAttribute('aria-hidden', 'true');
+            pointElement.style.setProperty('--bin-color', bin.color);
+            qrPointsRef.current.set(target.targetIndex, pointElement);
+            const pointObject = new CSS3DObject(pointElement);
+            pointObject.position.set(qrPoint.x * 1000, qrPoint.y * 1000, 0);
+            panelAnchor.add(pointObject);
             mindar.cssScene.add(panelAnchor);
             panelObjects.push(panelAnchor);
             const projectedCorners = Array.from({ length: 4 }, () => new THREE.Vector3());
@@ -249,15 +258,6 @@ export function ARScene({ onExit }: { onExit: () => void }) {
               if (!isCurrent()) return;
               updateTracking({ type: 'lost', slug: target.slug });
             };
-
-            const visualAnchor = mindar.addAnchor(target.targetIndex);
-            const ring = new THREE.Mesh(
-              new THREE.TorusGeometry(0.38, 0.006, 6, 48),
-              new THREE.MeshBasicMaterial({ color: bin.color, transparent: true, opacity: 0.8 }),
-            );
-            ring.position.z = 0.025;
-            visualAnchor.group.add(ring);
-            decorations.push(visualAnchor.group);
           }
 
           await mindar.start();
@@ -267,10 +267,8 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             return;
           }
           updateStatus(trackingRef.current.activeSlug ? 'detected' : 'searching');
-          const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
           const render = () => {
             if (!isCurrent()) return;
-            if (!reducedMotion) decorations.forEach((group) => { if (group.visible) group.rotation.z += 0.0018; });
             mindar.renderer.render(mindar.scene, mindar.camera);
             mindar.cssRenderer.render(mindar.cssScene, mindar.camera);
             frame = window.requestAnimationFrame(render);

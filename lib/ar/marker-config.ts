@@ -42,3 +42,9 @@ export function getMarkerCSSPanelPose() {
   const pose = getMarkerPanelPose();
   return { x: pose.x * 1000, y: pose.y * 1000, z: pose.z * 1000 };
 }
+
+/** QR center in the normalized, centered coordinate system of the full printed target. */
+export function getMarkerQRPoint() {
+  const { width, height, qrX, qrY, qrSize } = markerLabelGeometry;
+  return { x: (qrX + qrSize / 2 - width / 2) / width, y: (height / 2 - qrY - qrSize / 2) / width, z: 0 };
+}

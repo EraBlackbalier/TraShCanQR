@@ -11,7 +11,7 @@ export const markerLabelGeometry = {
   qrQuietZone: 4,
   panelWidth: 600,
   panelHeight: 300,
-  panelScale: 0.82,
+  panelScale: 1.2,
   panelGap: 12,
-  panelDepth: 0.008,
+  panelDepth: 0.002,
 } as const;
