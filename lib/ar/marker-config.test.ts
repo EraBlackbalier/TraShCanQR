@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { bins } from '@/data/bins';
-import { getMarkerBin, getMarkerPanelPose, getMarkerTarget, getMarkerTargetIndex, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
+import { getMarkerBin, getMarkerCSSPanelPose, getMarkerPanelPose, getMarkerTarget, getMarkerTargetIndex, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
 import { finishMarkerPanelExit, initialMarkerTrackingState, isCurrentARSession, nextMarkerPanelPhase, reduceMarkerTracking } from '@/lib/ar/tracking';
 
 describe('marcadores TraShCan', () => {
@@ -40,9 +40,23 @@ describe('marcadores TraShCan', () => {
   it('alinea el borde inferior del panel encima del QR según la geometría impresa', () => {
     const pose = getMarkerPanelPose();
     const panelBottomInImagePixels = markerLabelGeometry.height / 2 - pose.y * markerLabelGeometry.width + markerLabelGeometry.panelHeight * markerLabelGeometry.panelScale / 2;
-    expect(panelBottomInImagePixels).toBeCloseTo(markerLabelGeometry.qrCardTop - markerLabelGeometry.panelGap, 8);
+    expect(panelBottomInImagePixels).toBeCloseTo(markerLabelGeometry.qrY - markerLabelGeometry.panelGap, 8);
     expect(pose.x).toBe(0);
     expect(pose.z).toBeGreaterThan(0);
+  });
+
+  it('convierte la pose a píxeles CSS sin perder la relación espacial con el QR', () => {
+    const pose = getMarkerPanelPose();
+    const css = getMarkerCSSPanelPose();
+    expect(css.y * .001).toBeCloseTo(pose.y);
+    expect(css.z * .001).toBeCloseTo(pose.z);
+    expect(markerLabelGeometry.panelWidth * markerLabelGeometry.panelScale / markerLabelGeometry.qrSize).toBeLessThan(1.3);
+  });
+
+  it('oculta la tarjeta anterior inmediatamente al activar otra categoría', () => {
+    expect(nextMarkerPanelPhase('tracked', false, true)).toBe('hidden');
+    expect(nextMarkerPanelPhase('leaving', false, true)).toBe('hidden');
+    expect(nextMarkerPanelPhase('hidden', true, true)).toBe('tracked');
   });
 
   it('mantiene un marcador activo y recupera otro al perder seguimiento', () => {

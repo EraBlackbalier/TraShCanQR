@@ -14,9 +14,9 @@ export { markerLabelGeometry };
 
 /** CSS3D de MindAR usa 1 CSS px = 0.001 unidades del marcador (ancho = 1). */
 export function getMarkerPanelPose() {
-  const { width, height, qrCardTop, panelHeight, panelGap, panelDepth, panelScale } = markerLabelGeometry;
+  const { width, height, qrY, panelHeight, panelGap, panelDepth, panelScale } = markerLabelGeometry;
   const scaledPanelHeight = panelHeight * panelScale;
-  const panelCenterY = qrCardTop - panelGap - scaledPanelHeight / 2;
+  const panelCenterY = qrY - panelGap - scaledPanelHeight / 2;
   return {
     x: 0,
     y: (height / 2 - panelCenterY) / width,
@@ -35,4 +35,10 @@ export function getMarkerTarget(slug: string) {
 export function getMarkerBin(targetIndex: number) {
   const target = markerTargets.find((item) => item.targetIndex === targetIndex);
   return target ? getBinById(target.targetId) : undefined;
+}
+
+/** MindAR applies 0.001 to CSS anchors: child translations must use CSS pixels. */
+export function getMarkerCSSPanelPose() {
+  const pose = getMarkerPanelPose();
+  return { x: pose.x * 1000, y: pose.y * 1000, z: pose.z * 1000 };
 }

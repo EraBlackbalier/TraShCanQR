@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { syncPanelAnchorPose } from '@/lib/ar/panel-anchor';
+import { fitPanelToViewport, syncPanelAnchorPose } from '@/lib/ar/panel-anchor';
 
 class TestMatrix {
   values: number[];
@@ -18,5 +18,21 @@ describe('pose del panel CSS3D', () => {
     expect(panel.values).toEqual([1, 2, 3]);
     expect(syncPanelAnchorPose(panel, marker, true)).toBe(true);
     expect(panel.values).toEqual([8, 9, 10]);
+  });
+});
+
+describe('tamaño de la tarjeta frente al QR', () => {
+  it('conserva la escala del marcador a distancia sin agrandar artificialmente la tarjeta', () => {
+    expect(fitPanelToViewport(.2, .1, .82)).toBe(.82);
+  });
+  it('reduce una tarjeta cercana para dejar visible la cámara', () => {
+    const scale = fitPanelToViewport(.95, .65, .82);
+    expect(.95 * scale / .82).toBeLessThanOrEqual(.72);
+    expect(.65 * scale / .82).toBeLessThanOrEqual(.36);
+    expect(scale).toBeLessThan(.82);
+  });
+  it('descarta proyecciones inválidas sin introducir NaN en la escena', () => {
+    expect(fitPanelToViewport(NaN, .2, .82)).toBe(.82);
+    expect(fitPanelToViewport(0, .2, .82)).toBe(.82);
   });
 });

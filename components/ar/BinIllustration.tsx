@@ -4,6 +4,14 @@ import type { BinIcon } from '@/types/bin';
 export function BinIllustration({ kind }: { kind: BinIcon }) {
   return (
     <svg className={`ar-art ar-art-${kind}`} viewBox="0 0 220 190" role="img" aria-label={`Ilustración animada: ${illustrationNames[kind]}`}>
+      <g className="ar-art-loop" aria-hidden="true">
+        <path className="ar-art-loop-path" d="M40 142C12 83 43 25 104 23S196 60 185 111" />
+        <path className="ar-art-loop-arrow" d="m177 104 8 10 10-8" />
+      </g>
+      <g className="ar-art-mini ar-art-mini-one" aria-hidden="true" transform="translate(35 35)">
+        {kind === 'leaf' ? <path d="M0 20Q-2 0 22 0Q23 21 0 20Zm1-1L17 5" /> : kind === 'file' ? <path d="M0 0h16l7 7v23H0Zm16 0v8h7M5 15h13M5 21h13" /> : kind === 'zap' ? <path d="M13 0 0 18h11l-2 13 15-21H13Z" /> : kind === 'trash' ? <path d="M3 8h20l-2 24H5ZM0 5h26M8 0h10" /> : <path d="M8 0h9v8l6 7v17H2V15l6-7ZM6 20h13M9 3h7" />}
+      </g>
+      <g className="ar-art-mini ar-art-mini-two" aria-hidden="true" transform="translate(165 136)"><rect width="27" height="27" rx="8" /><path d="m6 14 5 5 10-12" /></g>
       <circle className="ar-art-orbit" cx="111" cy="94" r="72" />
       <circle className="ar-art-orbit ar-art-orbit-small" cx="111" cy="94" r="54" />
       {kind === 'leaf' && <>
@@ -25,7 +33,7 @@ export function BinIllustration({ kind }: { kind: BinIcon }) {
         <g className="art-float"><path className="ar-art-paper" d="M76 48h47l23 23v72H76z" /><path className="ar-art-fold" d="M123 48v25h23" />
           <path className="ar-art-line" d="M90 89h41m-41 13h36m-36 13h40" />
         </g>
-        <g className="art-box art-float-delay"><path d="m48 123 26-14 26 14-26 15Z" /><path d="M48 123v27l26 15v-27Zm52 0v27l-26 15v-27Z" /><path className="ar-art-box-fold" d="m74 109 1 28m-27-14 26 15 26-15" /></g>
+        <g className="ar-art-box art-float-delay"><path d="m48 123 26-14 26 14-26 15Z" /><path d="M48 123v27l26 15v-27Zm52 0v27l-26 15v-27Z" /><path className="ar-art-box-fold" d="m74 109 1 28m-27-14 26 15 26-15" /></g>
         <path className="ar-art-spark art-spark-one" d="M160 55v16m-8-8h16" />
       </>}
       {kind === 'glass' && <>

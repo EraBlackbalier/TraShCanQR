@@ -34,3 +34,34 @@
 @keyframes ar-material-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}@keyframes ar-ui-enter{from{opacity:0;transform:translateY(7px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes ar-card-exit{from{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}to{opacity:0;transform:translateY(7px) scale(.96);filter:blur(2px)}}@keyframes ar-float{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-5px) rotate(1.5deg)}}@keyframes ar-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}@keyframes ar-spark{0%,100%{opacity:.35;transform:scale(.7)}50%{opacity:1;transform:scale(1.2)}}@keyframes ar-orbit{to{transform:rotate(360deg)}}@keyframes ar-shine{0%,100%{opacity:.35}50%{opacity:1}}
 @media(max-width:700px){.ar-anchor-root{width:600px;height:300px}}
 @media(prefers-reduced-motion:reduce){.ar-anchor-card,.ar-anchor-root.is-tracked *{transition:none!important;animation:none!important}.ar-anchor-root.is-tracked .ar-card-art-stage,.ar-anchor-root.is-tracked .ar-card-copy>*{opacity:1;transform:none}.ar-anchor-root.is-leaving{display:none!important}}
+
+/* Motion stays inside the card; the CSS3D root retains the marker transform. */
+.ar-anchor-card{animation:none}
+.ar-anchor-root.is-tracked .ar-anchor-card{animation:ar-card-reveal .48s cubic-bezier(.16,.8,.25,1) both}
+.ar-art-mini{color:var(--bin-color);transform-box:fill-box;transform-origin:center;fill:var(--art-light);stroke:var(--art-ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ar-art-mini-two rect{fill:var(--bin-color);stroke:none}.ar-art-mini-two path{fill:none;stroke:white;stroke-width:3}
+.ar-art-loop-path{fill:none;stroke:var(--bin-color);stroke-width:2;stroke-dasharray:9 7;opacity:.6}.ar-art-loop-arrow{fill:none;stroke:var(--bin-color);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.ar-anchor-root.is-tracked .ar-art-mini-one{animation:ar-mini-travel 3.8s ease-in-out infinite}
+.ar-anchor-root.is-tracked .ar-art-mini-two{animation:ar-mini-stamp 3.8s ease-in-out -.8s infinite}
+.ar-anchor-root.is-tracked .ar-art-loop-path{animation:ar-flow 2s linear infinite}
+.ar-anchor-root.is-tracked .art-float,.ar-anchor-root.is-tracked .art-bob,.ar-anchor-root.is-tracked .art-float-delay{transform-box:fill-box;transform-origin:center}
+.ar-anchor-root.is-tracked .ar-art-leaf{animation:ar-leaf-grow 3.4s ease-in-out infinite;transform-box:fill-box;transform-origin:bottom left}
+.ar-anchor-root.is-tracked .ar-art-bottle .art-float{animation:ar-bottle-rock 3s ease-in-out infinite}
+.ar-anchor-root.is-tracked .ar-art-file .art-float{animation:ar-paper-turn 4s ease-in-out infinite}
+.ar-anchor-root.is-tracked .ar-art-file .art-float-delay{animation:ar-box-lift 4s ease-in-out -.6s infinite}
+.ar-anchor-root.is-tracked .ar-art-glass .art-float{animation:ar-glass-tilt 3.6s ease-in-out infinite}
+.ar-anchor-root.is-tracked .ar-art-can-top{animation:ar-lid-open 3s ease-in-out infinite;transform-box:fill-box;transform-origin:right center}
+.ar-anchor-root.is-tracked .ar-art-bolt{animation:ar-energy 2.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.ar-anchor-root.is-tracked .ar-art-circuit{animation:ar-flow 1s linear infinite}
+@keyframes ar-card-reveal{from{opacity:0;clip-path:inset(45% 3% round 20px)}to{opacity:1;clip-path:inset(0 round 20px)}}
+@keyframes ar-mini-travel{0%,100%{translate:0 0;rotate:-12deg}50%{translate:11px 16px;rotate:12deg}}
+@keyframes ar-mini-stamp{0%,100%{scale:.85;rotate:-8deg}45%,65%{scale:1.12;rotate:8deg}}
+@keyframes ar-flow{to{stroke-dashoffset:-32}}
+@keyframes ar-leaf-grow{0%,100%{transform:rotate(-8deg) scale(.9)}50%{transform:rotate(7deg) scale(1.06)}}
+@keyframes ar-bottle-rock{0%,100%{transform:translateY(3px) rotate(-8deg)}50%{transform:translateY(-7px) rotate(8deg)}}
+@keyframes ar-paper-turn{0%,100%{transform:rotate(-5deg) skewY(0deg)}50%{transform:translateY(-6px) rotate(7deg) skewY(-4deg)}}
+@keyframes ar-box-lift{0%,100%{transform:translateY(2px) rotate(0)}50%{transform:translateY(-9px) rotate(-7deg)}}
+@keyframes ar-glass-tilt{0%,100%{transform:rotate(-6deg)}50%{transform:translateY(-5px) rotate(6deg)}}
+@keyframes ar-lid-open{0%,30%,100%{transform:rotate(0)}50%,70%{transform:translateY(-5px) rotate(14deg)}}
+@keyframes ar-energy{0%,100%{transform:scale(.85);opacity:.55}40%,65%{transform:scale(1.14);opacity:1}}
+@media(prefers-reduced-motion:reduce){.ar-anchor-root.is-tracked .ar-anchor-card,.ar-anchor-root.is-tracked .ar-art *{animation:none!important;translate:none;rotate:none;scale:none}}

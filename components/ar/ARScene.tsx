@@ -6,8 +6,8 @@ import { CircleHelp, LoaderCircle } from 'lucide-react';
 import type { Group, Mesh } from 'three';
 import type { MindARThree as MindARThreeType, MindARAnchor } from 'mind-ar/dist/mindar-image-three.prod.js';
 import { getBinBySlug } from '@/data/bins';
-import { getMarkerBin, getMarkerPanelPose, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
-import { syncPanelAnchorPose } from '@/lib/ar/panel-anchor';
+import { getMarkerBin, getMarkerCSSPanelPose, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
+import { fitPanelToViewport, syncPanelAnchorPose } from '@/lib/ar/panel-anchor';
 import { disposeARSession, finishMarkerPanelExit, initialMarkerTrackingState, isCurrentARSession, nextMarkerPanelPhase, reduceMarkerTracking } from '@/lib/ar/tracking';
 import type { ARSessionLike } from '@/lib/ar/tracking';
 import { ARControls } from './ARControls';
@@ -40,7 +40,7 @@ function constructMindAR(MindAR: typeof MindARThreeType, container: HTMLElement,
     mindar = new MindAR({
       container,
       imageTargetSrc: '/ar/targets/trashcan-labels.mind',
-      maxTrack: 6,
+      maxTrack: 1,
       uiLoading: 'no',
       uiScanning: 'no',
       uiError: 'no',
@@ -97,6 +97,17 @@ export function ARScene({ onExit }: { onExit: () => void }) {
 
   const updateTracking = useCallback((action: { type: 'found' | 'lost'; slug: string }) => {
     trackingRef.current = reduceMarkerTracking(trackingRef.current, action);
+    // Apply selection before React effects/rendering so an old exit cannot overlap a new target.
+    for (const target of markerTargets) {
+      const element = panelElementsRef.current.get(target.targetIndex);
+      if (!element) continue;
+      const previous = element.classList.contains('is-tracked') ? 'tracked' : element.classList.contains('is-leaving') ? 'leaving' : 'hidden';
+      const phase = nextMarkerPanelPhase(previous, trackingRef.current.activeSlug === target.slug, trackingRef.current.activeSlug !== null);
+      element.classList.toggle('is-tracked', phase === 'tracked');
+      element.classList.toggle('is-leaving', phase === 'leaving');
+      element.inert = phase !== 'tracked';
+      element.setAttribute('aria-hidden', String(phase !== 'tracked'));
+    }
     dispatch(action);
     if (trackingRef.current.activeSlug) updateStatus('detected');
     else if (statusRef.current === 'detected') updateStatus('lost');
@@ -192,11 +203,13 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             };
             animationListeners.set(element, onAnimationEnd);
             element.addEventListener('animationend', onAnimationEnd);
+            element.inert = true;
+            element.setAttribute('aria-hidden', 'true');
             const root = createRoot(element);
             roots.push(root);
             root.render(<ARInformationPanel bin={bin} />);
             const object = new CSS3DObject(element);
-            const pose = getMarkerPanelPose();
+            const pose = getMarkerCSSPanelPose();
             object.position.set(pose.x, pose.y, pose.z);
             object.scale.setScalar(markerLabelGeometry.panelScale);
             const panelAnchor = new THREE.Group();
@@ -205,9 +218,28 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             panelAnchor.add(object);
             mindar.cssScene.add(panelAnchor);
             panelObjects.push(panelAnchor);
+            const projectedCorners = Array.from({ length: 4 }, () => new THREE.Vector3());
             cssAnchor.onTargetUpdate = () => {
               if (!isCurrent()) return;
-              if (syncPanelAnchorPose(panelAnchor.matrix, cssAnchor.group.matrix, cssAnchor.visible)) panelAnchor.matrixWorldNeedsUpdate = true;
+              if (syncPanelAnchorPose(panelAnchor.matrix, cssAnchor.group.matrix, cssAnchor.visible)) {
+                panelAnchor.matrixWorldNeedsUpdate = true;
+                // Only shrink when close: keep marker-relative placement, never pin to screen.
+                const halfWidth = markerLabelGeometry.panelWidth * markerLabelGeometry.panelScale / 2;
+                const halfHeight = markerLabelGeometry.panelHeight * markerLabelGeometry.panelScale / 2;
+                projectedCorners.forEach((point, index) => point.set(
+                  pose.x + (index % 2 ? halfWidth : -halfWidth),
+                  pose.y + (index < 2 ? halfHeight : -halfHeight),
+                  pose.z,
+                ).applyMatrix4(panelAnchor.matrix).project(mindar.camera));
+                const width = (Math.max(...projectedCorners.map(point => point.x)) - Math.min(...projectedCorners.map(point => point.x))) / 2;
+                const height = (Math.max(...projectedCorners.map(point => point.y)) - Math.min(...projectedCorners.map(point => point.y))) / 2;
+                const scale = fitPanelToViewport(width, height, markerLabelGeometry.panelScale);
+                if (Number.isFinite(scale)) {
+                  object.scale.setScalar(scale);
+                  // Preserve the gap above the QR even when the viewport requires a smaller card.
+                  object.position.y = pose.y - markerLabelGeometry.panelHeight * (markerLabelGeometry.panelScale - scale) / 2;
+                }
+              }
             };
             cssAnchor.onTargetFound = () => {
               if (!isCurrent()) return;
@@ -313,9 +345,10 @@ export function ARScene({ onExit }: { onExit: () => void }) {
       const root = panelElementsRef.current.get(target.targetIndex);
       if (root) {
         // Keep presentation tied to one explicit target and reject every stale/hidden category.
-        const active = tracking.activeSlug === target.slug;
+        const activeSlug = trackingRef.current.activeSlug;
+        const active = activeSlug === target.slug;
         const previousPhase = root.classList.contains('is-tracked') ? 'tracked' : root.classList.contains('is-leaving') ? 'leaving' : 'hidden';
-        const phase = nextMarkerPanelPhase(previousPhase, active);
+        const phase = nextMarkerPanelPhase(previousPhase, active, activeSlug !== null);
         root.classList.toggle('is-tracked', phase === 'tracked');
         root.classList.toggle('is-leaving', phase === 'leaving');
       }

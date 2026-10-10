@@ -30,8 +30,9 @@ export function isCurrentARSession(capturedGeneration: number, currentGeneration
 export type MarkerPanelPhase = 'hidden' | 'tracked' | 'leaving';
 
 /** Stable target changes start/finish visual phases without introducing a time-based hide race. */
-export function nextMarkerPanelPhase(current: MarkerPanelPhase, isActive: boolean): MarkerPanelPhase {
+export function nextMarkerPanelPhase(current: MarkerPanelPhase, isActive: boolean, anotherActive = false): MarkerPanelPhase {
   if (isActive) return 'tracked';
+  if (anotherActive) return 'hidden';
   if (current === 'tracked' || current === 'leaving') return 'leaving';
   return 'hidden';
 }
