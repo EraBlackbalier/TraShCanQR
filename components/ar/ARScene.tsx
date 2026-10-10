@@ -284,7 +284,6 @@ export function ARScene({ onExit }: { onExit: () => void }) {
         // React owns the panel; the CSS3D object keeps its transform tied to this image target.
         const active = tracking.activeSlug === target.slug;
         root.classList.toggle('is-tracked', active);
-        root.style.display = active ? 'block' : 'none';
       }
     }
   }, [tracking.activeSlug]);
