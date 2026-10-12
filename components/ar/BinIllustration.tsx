@@ -1,6 +1,6 @@
 import type { BinIcon } from '@/types/bin';
 
-/** Small, category-specific SVG artwork. Motion is scoped to the detected marker. */
+/** Gráficos SVG por categoría; modifica estas figuras/animaciones sin mover el ancla CSS3D de ARScene. */
 export function BinIllustration({ kind }: { kind: BinIcon }) {
   return (
     <svg className={`ar-art ar-art-${kind}`} viewBox="0 0 220 190" role="img" aria-label={`Ilustración animada: ${illustrationNames[kind]}`}>

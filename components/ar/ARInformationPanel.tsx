@@ -7,6 +7,11 @@ import { BinIllustration } from './BinIllustration';
 
 type PanelMode = 'accepted' | 'rejected';
 
+/**
+ * Maquetación, pestañas y transición del contenido de la tarjeta AR.
+ * Para cambiar qué se acepta/rechaza edita data/bins.ts, no dupliques reglas aquí.
+ * Para modificar el dibujo de una categoría edita BinIllustration.tsx.
+ */
 export function ARInformationPanel({ bin }: { bin: Bin }) {
   const [mode, setMode] = useState<PanelMode>('accepted');
   const isAccepted = mode === 'accepted';
