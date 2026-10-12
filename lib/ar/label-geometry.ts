@@ -1,4 +1,9 @@
-/** Print-source geometry shared by AR anchoring and the label/target generator. */
+/**
+ * Geometría común a la etiqueta impresa y al anclaje AR.
+ * Si mueves o cambias el tamaño del QR en scripts/generate-ar-labels.mjs,
+ * actualiza aquí qrX/qrY/qrSize y panelGap; marker-config deriva de estos valores.
+ * No ajustes el punto en ARScene con coordenadas de pantalla.
+ */
 export const markerLabelGeometry = {
   width: 1000,
   height: 1320,

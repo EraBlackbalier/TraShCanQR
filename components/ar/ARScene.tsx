@@ -75,6 +75,12 @@ async function cameraPermissionDenied() {
   }
 }
 
+/**
+ * Punto de entrada para la sesión AR: cámara, seguimiento y enlace espacial.
+ * Para editar la tarjeta usa ARInformationPanel; su ilustración vive en
+ * BinIllustration y las reglas por categoría vienen de data/bins.ts.
+ * ARControls contiene los controles visibles durante la sesión.
+ */
 export function ARScene({ onExit }: { onExit: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<MindARInstance | null>(null);
@@ -245,7 +251,8 @@ export function ARScene({ onExit }: { onExit: () => void }) {
                 const scale = fitPanelToViewport(width, height, markerLabelGeometry.panelScale);
                 if (Number.isFinite(scale)) {
                   object.scale.setScalar(scale);
-                  // Preserve the gap above the QR even when the viewport requires a smaller card.
+                  // Mantén el borde inferior junto al QR al limitar el tamaño en pantalla.
+                  // Si se cambia el punto de anclaje, ajustar esta compensación y sus pruebas.
                   object.position.y = pose.y - markerLabelGeometry.panelHeight * (markerLabelGeometry.panelScale - scale) / 2;
                 }
               }
