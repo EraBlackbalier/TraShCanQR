@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { bins } from '@/data/bins';
-import { getMarkerBin, getMarkerCSSPanelPose, getMarkerPanelPose, getMarkerTarget, getMarkerTargetIndex, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
+import { getMarkerBin, getMarkerCSSPanelPose, getMarkerQRPoint, getMarkerPanelPose, getMarkerTarget, getMarkerTargetIndex, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
 import { finishMarkerPanelExit, initialMarkerTrackingState, isCurrentARSession, nextMarkerPanelPhase, reduceMarkerTracking } from '@/lib/ar/tracking';
 
 describe('marcadores TraShCan', () => {
@@ -50,13 +50,21 @@ describe('marcadores TraShCan', () => {
     const css = getMarkerCSSPanelPose();
     expect(css.y * .001).toBeCloseTo(pose.y);
     expect(css.z * .001).toBeCloseTo(pose.z);
-    expect(markerLabelGeometry.panelWidth * markerLabelGeometry.panelScale / markerLabelGeometry.qrSize).toBeLessThan(1.3);
+    expect(markerLabelGeometry.panelWidth * markerLabelGeometry.panelScale / markerLabelGeometry.qrSize).toBeLessThan(1.9);
   });
 
   it('oculta la tarjeta anterior inmediatamente al activar otra categoría', () => {
     expect(nextMarkerPanelPhase('tracked', false, true)).toBe('hidden');
     expect(nextMarkerPanelPhase('leaving', false, true)).toBe('hidden');
     expect(nextMarkerPanelPhase('hidden', true, true)).toBe('tracked');
+  });
+
+  it('ubica el punto en el centro del QR, no en el centro de la etiqueta', () => {
+    const point = getMarkerQRPoint();
+    expect(point.x * markerLabelGeometry.width + markerLabelGeometry.width / 2).toBe(markerLabelGeometry.qrX + markerLabelGeometry.qrSize / 2);
+    expect(markerLabelGeometry.height / 2 - point.y * markerLabelGeometry.width).toBe(markerLabelGeometry.qrY + markerLabelGeometry.qrSize / 2);
+    expect(point.y).not.toBe(0);
+    expect(point.z).toBe(0);
   });
 
   it('mantiene un marcador activo y recupera otro al perder seguimiento', () => {

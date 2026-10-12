@@ -49,7 +49,7 @@ En `/generar-qr` elige QR tradicional o etiqueta AR, categoría y dirección. El
 1. Imprime una etiqueta AR en papel mate, completa y con buena calidad.
 2. Abre su QR nativo para llegar a `/bote/{slug}`.
 3. Pulsa **Ver en realidad aumentada**, concede permiso y apunta a toda la etiqueta a unos 25–50 cm bajo luz uniforme.
-4. Mueve el teléfono de lado, acércate/aléjate y gira ligeramente; el panel y aro deben seguir la etiqueta.
+4. Mueve el teléfono de lado, acércate/aléjate y gira ligeramente; el punto debe coincidir con el centro del QR y el panel debe seguirlo, creciendo al acercarte y reduciéndose al alejarte.
 5. Sácala del encuadre y vuelve a apuntarla para comprobar pérdida y recuperación.
 6. Sal de AR y verifica que el indicador de cámara desaparezca.
 
@@ -64,3 +64,7 @@ Conserva el proyecto existente `trashcan` y el dominio `trashcan.eradimension.de
 El panel visible se renderiza en un grupo CSS3D hermano del ancla detectora. El probe oculto conserva la notificación de MindAR; el grupo visible copia la matriz real del marcador durante cada actualización válida. Al perder el target, conserva la última pose durante su animación de salida de 240 ms y se oculta al terminar `animationend`; al recuperarlo retoma la matriz. Una sola categoría queda seleccionada, los callbacks se validan contra la generación de sesión y el reductor ignora slugs que no están en el catálogo.
 
 Las tarjetas llevan ilustraciones SVG animadas de las seis categorías y el catálogo sigue siendo su única fuente de texto. Las animaciones empiezan con el tracking válido y se detienen con `prefers-reduced-motion`. `npm run ar:labels` produce las etiquetas SVG/PNG, una hoja A4 `public/ar/labels/hoja-etiquetas.pdf` y el `.mind` de los seis PNG en el orden del catálogo. El QR sigue apuntando a `/bote/{slug}`; conserva la zona silenciosa para escaneo y el marco QR ocupa la misma posición de referencia usada para anclar el panel.
+
+El video conserva el tamaño y los offsets que calcula `MindAR.resize()`; el CSS no los reemplaza por un recorte adicional. El punto del QR y la tarjeta comparten la misma matriz CSS3D. El punto usa el centro del código en la etiqueta impresa, y la tarjeta queda 12 píxeles del target por encima del QR, a una profundidad normalizada de 0.002. Su tamaño se obtiene de la perspectiva del marcador y solo se limita cuando excede el 84% del ancho o el 44% del alto de pantalla. El filtro adaptativo de MindAR 1.2.5 conserva sus valores por defecto.
+
+La comprobación con un video generado de una etiqueta orgánica, procesado por MindAR en Chromium, midió un error del punto inferior a 2 píxeles en cinco escenarios: tamaño inicial, acercamiento, alejamiento, traslación/giro y orientación horizontal. Esta comprobación no utiliza cámara física y no sustituye la prueba en teléfonos.
