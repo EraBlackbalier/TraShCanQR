@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowUpRight, Check, Leaf, Recycle, ShieldAlert, X } from 'lucide-react';
 import type { Bin } from '@/types/bin';
 import { BinIllustration } from './BinIllustration';
@@ -14,11 +15,23 @@ type PanelMode = 'accepted' | 'rejected';
  */
 export function ARInformationPanel({ bin }: { bin: Bin }) {
   const [mode, setMode] = useState<PanelMode>('accepted');
+  const [expanded, setExpanded] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const expandButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (expanded) dialogRef.current?.showModal();
+  }, [expanded]);
+  const closeReader = () => {
+    setExpanded(false);
+    expandButtonRef.current?.focus();
+  };
   const isAccepted = mode === 'accepted';
   const items = isAccepted ? bin.acceptedItems : bin.rejectedItems;
 
-  return (
-    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`}>
+  const card = (
+    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`} onClick={(event) => {
+      if (!expanded && !(event.target as HTMLElement).closest('button')) setExpanded(true);
+    }}>
       <header className="ar-card-topline">
         <span className="ar-card-brand"><span className="ar-brand-mark"><Recycle size={15} /></span> TRASHCAN <i /> GUÍA DE SEPARACIÓN</span>
         <span className="ar-card-category"><span /> {bin.icon === 'zap' ? 'RECUPERACIÓN ESPECIAL' : 'RECICLAJE CONSCIENTE'}</span>
@@ -43,4 +56,15 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
       <footer className="ar-card-footer"><span><i className="ar-live-dot" /> MARCADOR VINCULADO</span><span>Reglas orientativas · verifica tu servicio local</span></footer>
     </section>
   );
+  return <>
+    {card}
+    <button ref={expandButtonRef} type="button" className="ar-expand-card" onClick={() => setExpanded(true)} aria-label={`Ampliar tarjeta: ${bin.name}`}>Ampliar tarjeta</button>
+    {expanded && createPortal(
+      <dialog ref={dialogRef} className="ar-reading-dialog" aria-label={`Lectura ampliada: ${bin.name}`} onCancel={closeReader} onClose={closeReader}>
+        <button type="button" className="ar-reading-close" onClick={closeReader} autoFocus><X size={18} /> Volver a la cámara</button>
+        <div className="ar-reading-scroll"><div className="ar-reading-card is-tracked">{card}</div></div>
+        <p>Desliza para recorrer la tarjeta si no cabe completa.</p>
+      </dialog>, document.body
+    )}
+  </>;
 }

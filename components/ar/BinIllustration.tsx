@@ -11,7 +11,7 @@ export function BinIllustration({ kind }: { kind: BinIcon }) {
       <g className="ar-art-mini ar-art-mini-one" aria-hidden="true" transform="translate(35 35)">
         {kind === 'leaf' ? <path d="M0 20Q-2 0 22 0Q23 21 0 20Zm1-1L17 5" /> : kind === 'file' ? <path d="M0 0h16l7 7v23H0Zm16 0v8h7M5 15h13M5 21h13" /> : kind === 'zap' ? <path d="M13 0 0 18h11l-2 13 15-21H13Z" /> : kind === 'trash' ? <path d="M3 8h20l-2 24H5ZM0 5h26M8 0h10" /> : <path d="M8 0h9v8l6 7v17H2V15l6-7ZM6 20h13M9 3h7" />}
       </g>
-      <g className="ar-art-mini ar-art-mini-two" aria-hidden="true" transform="translate(165 136)"><rect width="27" height="27" rx="8" /><path d="m6 14 5 5 10-12" /></g>
+      <g aria-hidden="true" transform="translate(165 136)"><g className="ar-art-mini ar-art-mini-two"><rect width="27" height="27" rx="8" /><path d="m6 14 5 5 10-12" /></g></g>
       <circle className="ar-art-orbit" cx="111" cy="94" r="72" />
       <circle className="ar-art-orbit ar-art-orbit-small" cx="111" cy="94" r="54" />
       {kind === 'leaf' && <>
