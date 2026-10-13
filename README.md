@@ -49,7 +49,7 @@ En `/generar-qr` elige QR tradicional o etiqueta AR, categoría y dirección. El
 1. Imprime una etiqueta AR en papel mate, completa y con buena calidad.
 2. Abre su QR nativo para llegar a `/bote/{slug}`.
 3. Pulsa **Ver en realidad aumentada**, concede permiso y apunta a toda la etiqueta a unos 25–50 cm bajo luz uniforme.
-4. Mueve el teléfono de lado, acércate/aléjate y gira ligeramente; el punto debe coincidir con el centro del QR y el panel debe seguirlo, creciendo al acercarte y reduciéndose al alejarte.
+4. Mueve el teléfono de lado, acércate/aléjate y gira ligeramente; el punto debe coincidir con el centro del QR y el panel debe seguirlo, creciendo al acercarte y reduciéndose al alejarte. Pulsa la tarjeta para ampliar su lectura y usa «Volver a la cámara» para regresar.
 5. Sácala del encuadre y vuelve a apuntarla para comprobar pérdida y recuperación.
 6. Sal de AR y verifica que el indicador de cámara desaparezca.
 
