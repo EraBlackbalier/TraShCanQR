@@ -69,3 +69,32 @@ export function disposeARSession(session: ARSessionLike | null | undefined): voi
     session.video.remove();
   }
 };
+
+/** Bridge brief tracking gaps without replaying the card's exit/entry animation. */
+export function createTrackingContinuity(
+  emit: (action: { type: 'found' | 'lost'; slug: string }) => void,
+  graceMs = 1000,
+) {
+  const pending = new Map<string, ReturnType<typeof setTimeout>>();
+  return {
+    found(slug: string) {
+      for (const [previous, timer] of pending) {
+        clearTimeout(timer);
+        pending.delete(previous);
+        if (previous !== slug) emit({ type: 'lost', slug: previous });
+      }
+      emit({ type: 'found', slug });
+    },
+    lost(slug: string) {
+      if (pending.has(slug)) return;
+      pending.set(slug, setTimeout(() => {
+        pending.delete(slug);
+        emit({ type: 'lost', slug });
+      }, graceMs));
+    },
+    dispose() {
+      pending.forEach(timer => clearTimeout(timer));
+      pending.clear();
+    },
+  };
+}

@@ -5,10 +5,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { CircleHelp, LoaderCircle } from 'lucide-react';
 import type { Group } from 'three';
 import type { MindARThree as MindARThreeType, MindARAnchor } from 'mind-ar/dist/mindar-image-three.prod.js';
+import { createMarkerMotion } from '@/lib/ar/motion';
 import { getBinBySlug } from '@/data/bins';
 import { getMarkerBin, getMarkerCSSPanelPose, getMarkerQRPoint, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
-import { fitPanelToViewport, syncPanelAnchorPose } from '@/lib/ar/panel-anchor';
-import { disposeARSession, finishMarkerPanelExit, initialMarkerTrackingState, isCurrentARSession, nextMarkerPanelPhase, reduceMarkerTracking } from '@/lib/ar/tracking';
+import { getReadablePanelLayout, syncPanelAnchorPose } from '@/lib/ar/panel-anchor';
+import { createTrackingContinuity, disposeARSession, finishMarkerPanelExit, initialMarkerTrackingState, isCurrentARSession, nextMarkerPanelPhase, reduceMarkerTracking } from '@/lib/ar/tracking';
 import type { ARSessionLike } from '@/lib/ar/tracking';
 import { ARControls } from './ARControls';
 import { ARFallback } from './ARFallback';
@@ -44,7 +45,7 @@ function constructMindAR(MindAR: typeof MindARThreeType, container: HTMLElement,
       uiLoading: 'no',
       uiScanning: 'no',
       uiError: 'no',
-      warmupTolerance: 5,
+      warmupTolerance: 0,
       missTolerance: 3,
       // MindAR 1.2.5 defaults use milliseconds: 0.001 cutoff and beta 1000.
       // Keep its adaptive filter instead of adding distance/orientation lag.
@@ -166,12 +167,17 @@ export function ARScene({ onExit }: { onExit: () => void }) {
           mindar.cssRenderer.domElement.classList.add('ar-css-renderer');
           mindar.renderer.domElement.classList.add('ar-webgl-renderer');
           mindar.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+          const continuity = createTrackingContinuity(action => {
+            if (isCurrent()) updateTracking(action);
+          });
           const roots: Root[] = [];
           const panelObjects: Group[] = [];
+          const panelPositioners: (() => void)[] = [];
           const animationListeners = new Map<HTMLElement, (event: AnimationEvent) => void>();
           let frame = 0;
           const resize = () => { if (isCurrent()) mindar.resize(); };
           const removeViewListeners = () => {
+            continuity.dispose();
             if (frame) window.cancelAnimationFrame(frame);
             window.removeEventListener('orientationchange', resize);
             window.visualViewport?.removeEventListener('resize', resize);
@@ -180,6 +186,7 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             panelObjects.forEach((object) => object.removeFromParent());
             animationListeners.forEach((listener, element) => element.removeEventListener('animationend', listener));
             roots.forEach((root) => root.unmount());
+            container.querySelectorAll('.ar-readable-anchor').forEach(element => element.remove());
           };
           cleanupRef.current = () => { removeViewListeners(); removeResizeListeners(); };
 
@@ -196,7 +203,8 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             cssAnchor.group.add(probe);
 
             const element = document.createElement('div');
-            element.className = 'ar-anchor-root';
+            element.className = 'ar-anchor-root ar-readable-anchor';
+            container.appendChild(element);
             element.style.width = `${markerLabelGeometry.panelWidth}px`;
             element.style.height = `${markerLabelGeometry.panelHeight}px`;
             panelElementsRef.current.set(target.targetIndex, element);
@@ -213,14 +221,10 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             const root = createRoot(element);
             roots.push(root);
             root.render(<ARInformationPanel bin={bin} />);
-            const object = new CSS3DObject(element);
             const pose = getMarkerCSSPanelPose();
-            object.position.set(pose.x, pose.y, pose.z);
-            object.scale.setScalar(markerLabelGeometry.panelScale);
             const panelAnchor = new THREE.Group();
             panelAnchor.matrixAutoUpdate = false;
             panelAnchor.matrix.copy(cssAnchor.group.matrix);
-            panelAnchor.add(object);
             const qrPoint = getMarkerQRPoint();
             const pointElement = document.createElement('div');
             pointElement.className = 'ar-qr-point';
@@ -233,49 +237,56 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             panelAnchor.add(pointObject);
             mindar.cssScene.add(panelAnchor);
             panelObjects.push(panelAnchor);
-            const projectedCorners = Array.from({ length: 4 }, () => new THREE.Vector3());
+            const projectedCenter = new THREE.Vector3();
+            const motion = createMarkerMotion();
+            let motionViewport = '';
+            const positionPanel = () => {
+              if (!element.classList.contains('is-tracked') && !element.classList.contains('is-leaving')) {
+                return;
+              }
+              projectedCenter.set(pose.x, pose.y, pose.z).applyMatrix4(panelAnchor.matrix).project(mindar.camera);
+              if (![projectedCenter.x, projectedCenter.y].every(Number.isFinite)) return;
+              const viewport = container.clientWidth + ':' + container.clientHeight;
+              if (viewport !== motionViewport) { motion.reset(); motionViewport = viewport; }
+              const now = performance.now();
+              motion.update((projectedCenter.x + 1) * container.clientWidth / 2,
+                (1 - projectedCenter.y) * container.clientHeight / 2, now);
+              const position = motion.frame(now);
+              if (!position) return;
+              const layout = getReadablePanelLayout(container.clientWidth, container.clientHeight, position.x, position.y);
+              element.style.zoom = String(layout.scale);
+              element.style.left = String(layout.left / layout.scale) + 'px';
+              element.style.top = String(layout.top / layout.scale) + 'px';
+            };
+            panelPositioners.push(positionPanel);
             cssAnchor.onTargetUpdate = () => {
               if (!isCurrent()) return;
               if (syncPanelAnchorPose(panelAnchor.matrix, cssAnchor.group.matrix, cssAnchor.visible)) {
                 panelAnchor.matrixWorldNeedsUpdate = true;
-                // Only shrink when close: keep marker-relative placement, never pin to screen.
-                const halfWidth = markerLabelGeometry.panelWidth * markerLabelGeometry.panelScale / 2;
-                const halfHeight = markerLabelGeometry.panelHeight * markerLabelGeometry.panelScale / 2;
-                projectedCorners.forEach((point, index) => point.set(
-                  pose.x + (index % 2 ? halfWidth : -halfWidth),
-                  pose.y + (index < 2 ? halfHeight : -halfHeight),
-                  pose.z,
-                ).applyMatrix4(panelAnchor.matrix).project(mindar.camera));
-                const width = (Math.max(...projectedCorners.map(point => point.x)) - Math.min(...projectedCorners.map(point => point.x))) / 2;
-                const height = (Math.max(...projectedCorners.map(point => point.y)) - Math.min(...projectedCorners.map(point => point.y))) / 2;
-                const scale = fitPanelToViewport(width, height, markerLabelGeometry.panelScale);
-                if (Number.isFinite(scale)) {
-                  object.scale.setScalar(scale);
-                  // Mantén el borde inferior junto al QR al limitar el tamaño en pantalla.
-                  // Si se cambia el punto de anclaje, ajustar esta compensación y sus pruebas.
-                  object.position.y = pose.y - markerLabelGeometry.panelHeight * (markerLabelGeometry.panelScale - scale) / 2;
-                }
+
               }
             };
             cssAnchor.onTargetFound = () => {
               if (!isCurrent()) return;
-              updateTracking({ type: 'found', slug: target.slug });
+              continuity.found(target.slug);
             };
             cssAnchor.onTargetLost = () => {
               if (!isCurrent()) return;
-              updateTracking({ type: 'lost', slug: target.slug });
+              continuity.lost(target.slug);
             };
           }
 
           await mindar.start();
           if (!isCurrent()) {
             roots.forEach((root) => root.unmount());
+            container.querySelectorAll('.ar-readable-anchor').forEach(element => element.remove());
             disposeARSession(mindar);
             return;
           }
           updateStatus(trackingRef.current.activeSlug ? 'detected' : 'searching');
           const render = () => {
             if (!isCurrent()) return;
+            panelPositioners.forEach(position => position());
             mindar.renderer.render(mindar.scene, mindar.camera);
             mindar.cssRenderer.render(mindar.cssScene, mindar.camera);
             frame = window.requestAnimationFrame(render);
