@@ -27,9 +27,22 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
   };
   const isAccepted = mode === 'accepted';
   const items = isAccepted ? bin.acceptedItems : bin.rejectedItems;
+  const tiltCard = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerType === 'touch' && event.buttons === 0) return;
+    const card = event.currentTarget;
+    const bounds = card.getBoundingClientRect();
+    const x = (event.clientX - bounds.left) / bounds.width - 0.5;
+    const y = (event.clientY - bounds.top) / bounds.height - 0.5;
+    card.style.setProperty('--card-tilt-x', `${y * -7}deg`);
+    card.style.setProperty('--card-tilt-y', `${x * 9}deg`);
+  };
+  const resetCardTilt = (event: React.PointerEvent<HTMLElement>) => {
+    event.currentTarget.style.setProperty('--card-tilt-x', '0deg');
+    event.currentTarget.style.setProperty('--card-tilt-y', '0deg');
+  };
 
   const card = (
-    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`} onClick={(event) => {
+    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`} onPointerMove={tiltCard} onPointerLeave={resetCardTilt} onPointerCancel={resetCardTilt} onClick={(event) => {
       if (!expanded && !(event.target as HTMLElement).closest('button')) setExpanded(true);
     }}>
       <header className="ar-card-topline">
