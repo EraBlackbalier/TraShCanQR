@@ -170,18 +170,9 @@ export function ARScene({ onExit }: { onExit: () => void }) {
           });
           const roots: Root[] = [];
           const panelObjects: Group[] = [];
-          const panelPositioners: (() => void)[] = [];
           const panelMotionUpdaters: (() => void)[] = [];
           const animationListeners = new Map<HTMLElement, (event: AnimationEvent) => void>();
           let frame = 0;
-          const syncDeviceOrientation = () => {
-            const isTouchDevice = navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches;
-            const reportedAngle = typeof screen.orientation?.angle === 'number' ? screen.orientation.angle : window.orientation;
-            const angle = isTouchDevice ? (reportedAngle || (window.innerWidth > window.innerHeight ? 90 : 0)) : 0;
-            container.querySelectorAll<HTMLElement>('.ar-readable-anchor').forEach((element) => {
-              element.style.setProperty('--device-rotation', `${angle}deg`);
-            });
-          };
           const tiltWithDevice = (event: DeviceOrientationEvent) => {
             const tiltX = Math.max(-12, Math.min(12, ((event.beta ?? 45) - 45) * 0.28));
             const tiltY = Math.max(-12, Math.min(12, (event.gamma ?? 0) * 0.45));
@@ -190,11 +181,12 @@ export function ARScene({ onExit }: { onExit: () => void }) {
               card.style.setProperty('--device-tilt-y', `${tiltY}deg`);
             });
           };
-          const resize = () => { if (isCurrent()) mindar.resize(); syncDeviceOrientation(); };
+          const resize = () => { if (isCurrent()) mindar.resize(); };
           const removeViewListeners = () => {
             continuity.dispose();
             if (frame) window.cancelAnimationFrame(frame);
             window.removeEventListener('orientationchange', resize);
+            window.removeEventListener('deviceorientation', tiltWithDevice);
             window.visualViewport?.removeEventListener('resize', resize);
             panelElementsRef.current.clear();
             qrPointsRef.current.clear();
@@ -219,7 +211,6 @@ export function ARScene({ onExit }: { onExit: () => void }) {
 
             const element = document.createElement('div');
             element.className = 'ar-anchor-root ar-readable-anchor';
-            element.style.setProperty('--device-rotation', '0deg');
             element.style.width = `${markerLabelGeometry.panelWidth}px`;
             element.style.height = `${markerLabelGeometry.panelHeight}px`;
             panelElementsRef.current.set(target.targetIndex, element);
@@ -241,12 +232,20 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             panelAnchor.matrixAutoUpdate = false;
             panelAnchor.matrix.copy(cssAnchor.group.matrix);
             const targetPanelMatrix = new THREE.Matrix4().copy(cssAnchor.group.matrix);
+            const currentPosition = new THREE.Vector3();
+            const currentRotation = new THREE.Quaternion();
+            const currentScale = new THREE.Vector3();
+            const targetPosition = new THREE.Vector3();
+            const targetRotation = new THREE.Quaternion();
+            const targetScale = new THREE.Vector3();
             panelMotionUpdaters.push(() => {
-              const current = panelAnchor.matrix.elements;
-              const target = targetPanelMatrix.elements;
-              for (let index = 0; index < 16; index += 1) {
-                current[index] += (target[index] - current[index]) * 0.22;
-              }
+              // Interpolar traslación, rotación y escala por separado evita deformar la tarjeta.
+              panelAnchor.matrix.decompose(currentPosition, currentRotation, currentScale);
+              targetPanelMatrix.decompose(targetPosition, targetRotation, targetScale);
+              currentPosition.lerp(targetPosition, 0.22);
+              currentRotation.slerp(targetRotation, 0.22);
+              currentScale.lerp(targetScale, 0.22);
+              panelAnchor.matrix.compose(currentPosition, currentRotation, currentScale);
               panelAnchor.matrixWorldNeedsUpdate = true;
             });
             const panelObject = new CSS3DObject(element);
@@ -294,16 +293,13 @@ export function ARScene({ onExit }: { onExit: () => void }) {
           const render = () => {
             if (!isCurrent()) return;
             panelMotionUpdaters.forEach(update => update());
-            panelPositioners.forEach(position => position());
             mindar.renderer.render(mindar.scene, mindar.camera);
             mindar.cssRenderer.render(mindar.cssScene, mindar.camera);
             frame = window.requestAnimationFrame(render);
           };
           frame = window.requestAnimationFrame(render);
           window.addEventListener('orientationchange', resize);
-          screen.orientation?.addEventListener('change', syncDeviceOrientation);
           window.addEventListener('deviceorientation', tiltWithDevice);
-          syncDeviceOrientation();
           window.visualViewport?.addEventListener('resize', resize);
         } catch (error) {
           if (!isCurrent()) return;
