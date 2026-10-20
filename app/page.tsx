@@ -1,11 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowDown, ArrowRight, ScanLine, Sparkles, ScanSearch } from 'lucide-react';
+import { ArrowRight, QrCode, ScanLine, Sparkles, ScanSearch } from 'lucide-react';
 import { bins } from '@/data/bins';
 import { BinCard } from '@/components/bins/BinCard';
+import { Scanner } from '@/components/scanner/Scanner';
 
 export default function HomePage() {
+  const [scannerOpen, setScannerOpen] = useState(false);
+
   return (
     <main>
       <section className="home-hero">
@@ -13,9 +17,9 @@ export default function HomePage() {
           <span className="eyebrow"><Sparkles size={14} /> SEPARAR BIEN EMPIEZA AQUÍ</span>
           <h1>Escanea, aprende<br />y <span>separa mejor.</span></h1>
           <p>Apunta a la etiqueta física y descubre los residuos permitidos con realidad aumentada anclada al marcador.</p>
-          <div className="hero-actions">
-            <a id="escanear" className="button button-primary button-large" href="#categorias"><ScanLine size={20} /> Elegir bote en AR</a>
-            <a className="text-link" href="#categorias">Explorar categorías <ArrowDown size={16} /></a>
+          <div className="hero-actions hero-quick-actions">
+            <Link href="/generar-qr" className="button button-primary button-large hero-quick-action"><QrCode size={22} /> Generar QR</Link>
+            <button type="button" className="button button-outline button-large hero-quick-action" onClick={() => setScannerOpen(true)}><ScanLine size={22} /> Escanear QR</button>
           </div>
           <div className="hero-footnote"><span className="live-dot" /> Fácil, rápido y sin instalar nada</div>
         </div>
@@ -33,6 +37,7 @@ export default function HomePage() {
       <section className="ar-home-card"><span className="ar-home-symbol"><ScanSearch size={27} /></span><div><span className="eyebrow">UNA GUÍA QUE SIGUE LA ETIQUETA</span><h2>Apunta y aprende en realidad aumentada</h2><p>Selecciona el tipo de bote, activa la cámara y apunta a su etiqueta impresa. Solo aparecerá el contenido de esa categoría.</p></div><Link href="/ar/bote/organicos" className="button button-outline">Probar experiencia AR <ArrowRight size={17} /></Link></section>
       <section className="home-bottom"><span className="bottom-icon"><ScanLine size={19} /></span><p>¿Tienes un bote enfrente?</p><Link href="/generar-qr">Imprimir etiquetas AR <ArrowRight size={16} /></Link></section>
       <footer className="site-footer"><span>TraShCan<span className="brand-dot">.</span></span><span>Aprender a separar también cuenta.</span><span>© {new Date().getFullYear()} TraShCan</span></footer>
+      {scannerOpen && <Scanner onClose={() => setScannerOpen(false)} />}
     </main>
   );
 }
