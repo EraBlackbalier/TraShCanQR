@@ -95,6 +95,11 @@ export function ARScene({ onExit }: { onExit: () => void }) {
   const [attempt, setAttempt] = useState(0);
   const [cameraDeviceId, setCameraDeviceId] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const cardZoomRef = useRef(1);
+  const changeCardZoom = useCallback((amount: number) => {
+    cardZoomRef.current = Math.max(.75, Math.min(3.5, cardZoomRef.current + amount));
+    panelElementsRef.current.forEach((element) => element.style.setProperty('--user-card-scale', String(cardZoomRef.current)));
+  }, []);
 
   const updateStatus = useCallback((next: ARStatus) => {
     statusRef.current = next;
@@ -211,6 +216,7 @@ export function ARScene({ onExit }: { onExit: () => void }) {
 
             const element = document.createElement('div');
             element.className = 'ar-anchor-root ar-readable-anchor';
+            element.style.setProperty('--user-card-scale', String(cardZoomRef.current));
             element.style.width = `${markerLabelGeometry.panelWidth}px`;
             element.style.height = `${markerLabelGeometry.panelHeight}px`;
             panelElementsRef.current.set(target.targetIndex, element);
@@ -393,7 +399,7 @@ export function ARScene({ onExit }: { onExit: () => void }) {
         {status === 'loading' && <div className="ar-camera-placeholder"><LoaderCircle className="ar-spin" size={24} /><span>Preparando cámara…</span></div>}
       </div>
       <ARTrackingStatus status={status} markerName={activeBin?.name} />
-      <ARControls />
+      <ARControls onZoomIn={() => changeCardZoom(.15)} onZoomOut={() => changeCardZoom(-.15)} />
       <button className="ar-help-button" onClick={() => setHelpOpen((open) => !open)} aria-expanded={helpOpen} aria-label="Instrucciones de realidad aumentada"><CircleHelp size={20} /></button>
       {helpOpen && <aside className="ar-help-card"><strong>Cómo encontrar el marcador</strong><p>Ilumina la etiqueta, mantén el teléfono a unos 25–50 cm y muévelo despacio hasta encuadrar el diseño completo.</p></aside>}
       {failed && <ARFallback status={status} onRetry={retry} />}
