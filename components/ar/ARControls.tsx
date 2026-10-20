@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { ArrowLeft, CircleHelp, MousePointerClick, ZoomIn, ZoomOut } from 'lucide-react';
 
 /**
@@ -18,6 +18,11 @@ export function ARControls({ onZoomIn, onZoomOut }: { onZoomIn: () => void; onZo
     holdTimer.current = null;
     repeatTimer.current = null;
   };
+  // Evitar que los intervalos sigan ejecutándose cuando se abandona la vista AR.
+  useEffect(() => () => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    if (repeatTimer.current) clearInterval(repeatTimer.current);
+  }, []);
   const startHold = (action: () => void) => {
     stopHold();
     holdTimer.current = setTimeout(() => {

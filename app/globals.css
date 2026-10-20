@@ -104,3 +104,8 @@
 .ar-zoom-button{display:grid;place-items:center;width:44px;min-height:44px;border:1px solid rgba(255,255,255,.2);border-radius:14px;background:rgba(20,39,29,.84);color:white;cursor:pointer;backdrop-filter:blur(12px)}
 .ar-zoom-button:hover{background:rgba(40,105,70,.92)}
 .ar-card-hint{max-width:260px}
+
+/* Integración accesible: conservar ampliación por botón y acomodar zoom en móviles. */
+.ar-expand-card{position:absolute;right:10px;bottom:-30px;min-height:30px;padding:3px 10px;border:1px solid #ffffff80;border-radius:9px;background:#17382a;color:white;font-size:12px;cursor:pointer}
+@media(max-width:700px){.ar-control-group{flex:1;justify-content:flex-end}.ar-control-group>.ar-control-help:not(.ar-card-hint){display:none}.ar-card-hint{position:absolute;right:0;bottom:54px;max-width:260px;justify-content:center;min-height:32px;padding:5px 9px}}
+@media(max-width:380px){.ar-card-hint{right:0;max-width:230px;font-size:9px}}

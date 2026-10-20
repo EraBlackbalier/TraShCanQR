@@ -17,11 +17,13 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
   const [mode, setMode] = useState<PanelMode>('accepted');
   const [expanded, setExpanded] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const expandButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (expanded) dialogRef.current?.showModal();
   }, [expanded]);
   const closeReader = () => {
     setExpanded(false);
+    expandButtonRef.current?.focus();
   };
   const isAccepted = mode === 'accepted';
   const items = isAccepted ? bin.acceptedItems : bin.rejectedItems;
@@ -69,6 +71,7 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
   );
   return <>
     {card}
+    <button ref={expandButtonRef} type="button" className="ar-expand-card" onClick={() => setExpanded(true)} aria-label={`Ampliar tarjeta: ${bin.name}`}>Ampliar tarjeta</button>
     {expanded && createPortal(
       <dialog ref={dialogRef} className="ar-reading-dialog" aria-label={`Lectura ampliada: ${bin.name}`} onCancel={closeReader} onClose={closeReader}>
         <button type="button" className="ar-reading-close" onClick={closeReader} autoFocus><X size={18} /> Volver a la cámara</button>
