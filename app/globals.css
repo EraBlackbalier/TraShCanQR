@@ -115,3 +115,6 @@
 /* Mejora compartida: interacción táctil estable y foco visible al usar los botones AR. */
 .ar-zoom-button{touch-action:manipulation}
 .ar-zoom-button:focus-visible{outline:3px solid #c9f08a;outline-offset:3px}
+
+/* El panel enfocado conserva un indicador visible sin añadir botones redundantes. */
+.ar-readable-anchor .ar-anchor-card:focus-visible{outline:3px solid #c9f08a;outline-offset:3px}
