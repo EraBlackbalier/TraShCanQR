@@ -19,6 +19,7 @@
 @media(max-width:380px){.ar-controls{left:9px;right:9px}.ar-control-help{max-width:155px}.ar-control-button{padding:0 9px}.ar-anchor-root,.ar-anchor-card{width:205px}.ar-anchor-heading strong{font-size:12px}}
 .ar-control-group{display:flex;align-items:center;gap:6px;pointer-events:auto}.ar-zoom-button{display:grid;place-items:center;width:44px;min-height:44px;border:1px solid rgba(255,255,255,.2);border-radius:14px;background:rgba(20,39,29,.84);color:white;cursor:pointer;backdrop-filter:blur(12px)}.ar-zoom-button:hover{background:rgba(40,105,70,.92)}
 .ar-card-hint{max-width:260px}
+@media(max-width:700px){.ar-controls{bottom:max(14px,env(safe-area-inset-bottom));padding-top:48px}.ar-control-group{margin-left:auto}.ar-control-help:not(.ar-card-hint){display:none}.ar-card-hint{position:absolute;right:0;bottom:54px;max-width:calc(100vw - 28px);white-space:nowrap;font-size:9px}}
 @media print{.print-card.label-preview{width:100%;max-width:none;min-height:100vh;border-radius:0;box-shadow:none}.ar-label-preview{width:auto;height:96vh;max-width:100%;object-fit:contain}}
 
 /* CSS3D maps these logical marker pixels through the tracked image target's camera matrix. */
