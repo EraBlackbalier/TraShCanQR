@@ -32,7 +32,7 @@ it('amplía la misma tarjeta, conserva la pestaña y permite volver', () => {
   HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) { this.setAttribute('open', ''); });
   render(<ARInformationPanel bin={getBinBySlug('organicos')!} />);
   fireEvent.click(screen.getByRole('tab', { name: /EVITA/ }));
-  fireEvent.click(screen.getByRole('button', { name: /Ampliar tarjeta/ }));
+  fireEvent.click(screen.getByRole('region', { name: 'Información AR: Residuos orgánicos' }));
   const dialog = screen.getByRole('dialog');
   expect(within(dialog).getByText('NO DEPOSITES')).toBeTruthy();
   fireEvent.click(within(dialog).getByRole('tab', { name: /SÍ PUEDES/ }));
