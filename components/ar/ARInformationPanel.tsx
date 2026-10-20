@@ -17,13 +17,18 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
   const [mode, setMode] = useState<PanelMode>('accepted');
   const [expanded, setExpanded] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const expandButtonRef = useRef<HTMLButtonElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
+  const restoreFocusRef = useRef(false);
   useEffect(() => {
     if (expanded) dialogRef.current?.showModal();
+    else if (restoreFocusRef.current) {
+      restoreFocusRef.current = false;
+      cardRef.current?.focus();
+    }
   }, [expanded]);
   const closeReader = () => {
+    restoreFocusRef.current = true;
     setExpanded(false);
-    expandButtonRef.current?.focus();
   };
   const isAccepted = mode === 'accepted';
   const items = isAccepted ? bin.acceptedItems : bin.rejectedItems;
@@ -42,7 +47,12 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
   };
 
   const card = (
-    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`} onPointerMove={tiltCard} onPointerLeave={resetCardTilt} onPointerCancel={resetCardTilt} onClick={(event) => {
+    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`} aria-description="Presiona Enter o Espacio para ampliar la tarjeta" aria-keyshortcuts="Enter Space" tabIndex={expanded ? -1 : 0} ref={(element) => { if (element && !element.closest('.ar-reading-dialog')) cardRef.current = element; }} onKeyDown={(event) => {
+      if (!expanded && event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        setExpanded(true);
+      }
+    }} onPointerMove={tiltCard} onPointerLeave={resetCardTilt} onPointerCancel={resetCardTilt} onClick={(event) => {
       if (!expanded && !(event.target as HTMLElement).closest('button')) setExpanded(true);
     }}>
       <header className="ar-card-topline">
@@ -71,7 +81,6 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
   );
   return <>
     {card}
-    <button ref={expandButtonRef} type="button" className="ar-expand-card" onClick={() => setExpanded(true)} aria-label={`Ampliar tarjeta: ${bin.name}`}>Ampliar tarjeta</button>
     {expanded && createPortal(
       <dialog ref={dialogRef} className="ar-reading-dialog" aria-label={`Lectura ampliada: ${bin.name}`} onCancel={closeReader} onClose={closeReader}>
         <button type="button" className="ar-reading-close" onClick={closeReader} autoFocus><X size={18} /> Volver a la cámara</button>
