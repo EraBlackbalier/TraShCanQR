@@ -47,7 +47,7 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
   };
 
   const card = (
-    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`} aria-description="Presiona Enter o Espacio para ampliar la tarjeta" aria-keyshortcuts="Enter Space" tabIndex={expanded ? -1 : 0} ref={(element) => { if (element && !element.closest('.ar-reading-dialog')) cardRef.current = element; }} onKeyDown={(event) => {
+    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`} title="Presiona Enter o Espacio para ampliar la tarjeta" aria-keyshortcuts="Enter Space" tabIndex={expanded ? -1 : 0} ref={(element) => { if (element && !element.closest('.ar-reading-dialog')) cardRef.current = element; }} onKeyDown={(event) => {
       if (!expanded && event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
         event.preventDefault();
         setExpanded(true);
