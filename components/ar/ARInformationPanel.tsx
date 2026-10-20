@@ -17,10 +17,17 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
   const [mode, setMode] = useState<PanelMode>('accepted');
   const [expanded, setExpanded] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
+  const restoreFocusRef = useRef(false);
   useEffect(() => {
     if (expanded) dialogRef.current?.showModal();
+    else if (restoreFocusRef.current) {
+      restoreFocusRef.current = false;
+      cardRef.current?.focus();
+    }
   }, [expanded]);
   const closeReader = () => {
+    restoreFocusRef.current = true;
     setExpanded(false);
   };
   const isAccepted = mode === 'accepted';
@@ -40,7 +47,12 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
   };
 
   const card = (
-    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`} onPointerMove={tiltCard} onPointerLeave={resetCardTilt} onPointerCancel={resetCardTilt} onClick={(event) => {
+    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`} aria-description="Presiona Enter o Espacio para ampliar la tarjeta" aria-keyshortcuts="Enter Space" tabIndex={expanded ? -1 : 0} ref={(element) => { if (element && !element.closest('.ar-reading-dialog')) cardRef.current = element; }} onKeyDown={(event) => {
+      if (!expanded && event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        setExpanded(true);
+      }
+    }} onPointerMove={tiltCard} onPointerLeave={resetCardTilt} onPointerCancel={resetCardTilt} onClick={(event) => {
       if (!expanded && !(event.target as HTMLElement).closest('button')) setExpanded(true);
     }}>
       <header className="ar-card-topline">
