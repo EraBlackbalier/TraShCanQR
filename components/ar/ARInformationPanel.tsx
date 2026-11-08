@@ -1,33 +1,44 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowUpRight, Check, Leaf, Recycle, ShieldAlert, X } from 'lucide-react';
 import type { Bin } from '@/types/bin';
 import { BinIllustration } from './BinIllustration';
 
 type PanelMode = 'accepted' | 'rejected';
+export type DetailsOpener = (focusTarget?: HTMLElement | null) => void;
 
 /**
  * Maquetación, pestañas y transición del contenido de la tarjeta AR.
  * Para cambiar qué se acepta/rechaza edita data/bins.ts, no dupliques reglas aquí.
  * Para modificar el dibujo de una categoría edita BinIllustration.tsx.
  */
-export function ARInformationPanel({ bin }: { bin: Bin }) {
+export function ARInformationPanel({ bin, onOpenReady }: { bin: Bin; onOpenReady?: (open: DetailsOpener | null) => void }) {
   const [mode, setMode] = useState<PanelMode>('accepted');
   const [expanded, setExpanded] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const cardRef = useRef<HTMLElement>(null);
-  const restoreFocusRef = useRef(false);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const openReader = useCallback<DetailsOpener>((focusTarget) => {
+    returnFocusRef.current = focusTarget ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    setExpanded(true);
+  }, []);
+
   useEffect(() => {
-    if (expanded) dialogRef.current?.showModal();
-    else if (restoreFocusRef.current) {
-      restoreFocusRef.current = false;
-      cardRef.current?.focus();
+    onOpenReady?.(openReader);
+    return () => onOpenReady?.(null);
+  }, [onOpenReady, openReader]);
+
+  useEffect(() => {
+    if (expanded) {
+      dialogRef.current?.showModal();
+    } else if (returnFocusRef.current) {
+      const focusTarget = returnFocusRef.current;
+      returnFocusRef.current = null;
+      focusTarget.focus();
     }
   }, [expanded]);
   const closeReader = () => {
-    restoreFocusRef.current = true;
     setExpanded(false);
   };
   const isAccepted = mode === 'accepted';
@@ -47,14 +58,7 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
   };
 
   const card = (
-    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`} title="Presiona Enter o Espacio para ampliar la tarjeta" aria-keyshortcuts="Enter Space" tabIndex={expanded ? -1 : 0} ref={(element) => { if (element && !element.closest('.ar-reading-dialog')) cardRef.current = element; }} onKeyDown={(event) => {
-      if (!expanded && event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
-        event.preventDefault();
-        setExpanded(true);
-      }
-    }} onPointerMove={tiltCard} onPointerLeave={resetCardTilt} onPointerCancel={resetCardTilt} onClick={(event) => {
-      if (!expanded && !(event.target as HTMLElement).closest('button')) setExpanded(true);
-    }}>
+    <section className={`ar-anchor-card ar-card-${bin.icon}`} style={{ '--bin-color': bin.color } as React.CSSProperties} aria-label={`Información AR: ${bin.name}`} onPointerMove={tiltCard} onPointerLeave={resetCardTilt} onPointerCancel={resetCardTilt}>
       <header className="ar-card-topline">
         <span className="ar-card-brand"><span className="ar-brand-mark"><Recycle size={15} /></span> TRASHCAN <i /> GUÍA DE SEPARACIÓN</span>
         <span className="ar-card-category"><span /> {bin.icon === 'zap' ? 'RECUPERACIÓN ESPECIAL' : 'RECICLAJE CONSCIENTE'}</span>
@@ -79,14 +83,11 @@ export function ARInformationPanel({ bin }: { bin: Bin }) {
       <footer className="ar-card-footer"><span><i className="ar-live-dot" /> MARCADOR VINCULADO</span><span>Reglas orientativas · verifica tu servicio local</span></footer>
     </section>
   );
-  return <>
-    {card}
-    {expanded && createPortal(
+  return expanded ? createPortal(
       <dialog ref={dialogRef} className="ar-reading-dialog" aria-label={`Lectura ampliada: ${bin.name}`} onCancel={closeReader} onClose={closeReader}>
         <button type="button" className="ar-reading-close" onClick={closeReader} autoFocus><X size={18} /> Volver a la cámara</button>
         <div className="ar-reading-scroll"><div className="ar-reading-card is-tracked">{card}</div></div>
         <p>Desliza para recorrer la tarjeta si no cabe completa.</p>
       </dialog>, document.body
-    )}
-  </>;
+    ) : null;
 }
