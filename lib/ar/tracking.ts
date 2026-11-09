@@ -9,14 +9,14 @@ export type MarkerTrackingAction = { type: 'found' | 'lost'; slug: string } | { 
 
 export const initialMarkerTrackingState: MarkerTrackingState = { visibleSlugs: [], activeSlug: null };
 
-/** Keep one active label at a time; select another visible label after the active one is lost. */
+/** Keep one active label at a time; a newly found label takes focus immediately. */
 export function reduceMarkerTracking(state: MarkerTrackingState, action: MarkerTrackingAction): MarkerTrackingState {
   if (action.type === 'reset') return initialMarkerTrackingState;
   if (!getBinBySlug(action.slug)) return state;
   if (action.type === 'found') {
     if (state.visibleSlugs.includes(action.slug)) return state;
     const visibleSlugs = [...state.visibleSlugs, action.slug];
-    return { visibleSlugs, activeSlug: state.activeSlug ?? action.slug };
+    return { visibleSlugs, activeSlug: action.slug };
   }
   const visibleSlugs = state.visibleSlugs.filter((slug) => slug !== action.slug);
   const activeSlug = state.activeSlug === action.slug ? (visibleSlugs[0] ?? null) : state.activeSlug;

@@ -67,10 +67,10 @@ describe('marcadores TraShCan', () => {
     expect(point.z).toBe(0);
   });
 
-  it('mantiene un marcador activo y recupera otro al perder seguimiento', () => {
+  it('prioriza el marcador nuevo y recupera el anterior al perder seguimiento', () => {
     let state = reduceMarkerTracking(initialMarkerTrackingState, { type: 'found', slug: 'organicos' });
     state = reduceMarkerTracking(state, { type: 'found', slug: 'vidrio' });
-    expect(state.activeSlug).toBe('organicos');
+    expect(state.activeSlug).toBe('vidrio');
     state = reduceMarkerTracking(state, { type: 'lost', slug: 'organicos' });
     expect(state).toEqual({ visibleSlugs: ['vidrio'], activeSlug: 'vidrio' });
     state = reduceMarkerTracking(state, { type: 'lost', slug: 'vidrio' });
@@ -84,6 +84,7 @@ describe('marcadores TraShCan', () => {
     const repeated = reduceMarkerTracking(state, { type: 'found', slug: 'vidrio' });
     expect(repeated).toBe(state);
     state = reduceMarkerTracking(state, { type: 'found', slug: 'electronicos' });
+    expect(state.activeSlug).toBe('electronicos');
     state = reduceMarkerTracking(state, { type: 'lost', slug: 'electronicos' });
     expect(state.activeSlug).toBe('vidrio');
     state = reduceMarkerTracking(state, { type: 'lost', slug: 'vidrio' });
