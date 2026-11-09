@@ -1,17 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { CircleHelp, LoaderCircle } from 'lucide-react';
-import type { Group } from 'three';
+import type { AnimationMixer, Group } from 'three';
 import type { MindARThree as MindARThreeType, MindARAnchor } from 'mind-ar/dist/mindar-image-three.prod.js';
 import { getBinBySlug } from '@/data/bins';
-import { getMarkerBin, getMarkerCSSPanelPose, getMarkerQRPoint, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
-import { createTrackingContinuity, disposeARSession, finishMarkerPanelExit, initialMarkerTrackingState, isCurrentARSession, nextMarkerPanelPhase, reduceMarkerTracking } from '@/lib/ar/tracking';
+import { getMarkerBin, getMarkerQRPoint, markerTargets } from '@/lib/ar/marker-config';
+import { createTrackingContinuity, disposeARSession, initialMarkerTrackingState, isCurrentARSession, reduceMarkerTracking } from '@/lib/ar/tracking';
 import type { ARSessionLike } from '@/lib/ar/tracking';
 import { ARControls } from './ARControls';
 import { ARFallback } from './ARFallback';
-import { ARInformationPanel } from './ARInformationPanel';
+import { ARInformationPanel, type DetailsOpener } from './ARInformationPanel';
 import { ARTrackingStatus, type ARStatus } from './ARTrackingStatus';
 
 type MindARInstance = MindARThreeType & ARSessionLike & {
@@ -22,6 +21,25 @@ type MindARInstance = MindARThreeType & ARSessionLike & {
   renderer: import('three').WebGLRenderer;
   addAnchor(index: number): MindARAnchor;
   addCSSAnchor(index: number): MindARAnchor;
+};
+
+const modelSources: Record<string, string> = {
+  organicos: '/ar/models/organicos.glb?v=2',
+  plasticos: '/ar/models/plasticos.glb?v=2',
+  'papel-carton': '/ar/models/papel-carton.glb?v=2',
+  vidrio: '/ar/models/vidrio.glb?v=2',
+  'no-reciclables': '/ar/models/no-reciclables.glb?v=2',
+  electronicos: '/ar/models/electronicos.glb?v=2',
+};
+
+type ModelEntry = {
+  anchor: Group;
+  sourceAnchor: Group;
+  content: Group;
+  baseScale: number;
+  mixer?: AnimationMixer;
+  loaded: boolean;
+  loading?: Promise<void>;
 };
 
 type ResizeRegistration = { listener: EventListenerOrEventListenerObject; options?: boolean | AddEventListenerOptions };
@@ -83,7 +101,8 @@ async function cameraPermissionDenied() {
 export function ARScene({ onExit }: { onExit: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<MindARInstance | null>(null);
-  const panelElementsRef = useRef(new Map<number, HTMLElement>());
+  const modelEntriesRef = useRef(new Map<number, ModelEntry>());
+  const detailOpenersRef = useRef(new Map<number, DetailsOpener>());
   const qrPointsRef = useRef(new Map<number, HTMLElement>());
   const cleanupRef = useRef<(() => void) | null>(null);
   const startPromiseRef = useRef<Promise<void> | null>(null);
@@ -95,10 +114,15 @@ export function ARScene({ onExit }: { onExit: () => void }) {
   const [attempt, setAttempt] = useState(0);
   const [cameraDeviceId, setCameraDeviceId] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const cardZoomRef = useRef(1);
-  const changeCardZoom = useCallback((amount: number) => {
-    cardZoomRef.current = Math.max(.75, Math.min(3.5, cardZoomRef.current + amount));
-    panelElementsRef.current.forEach((element) => element.style.setProperty('--user-card-scale', String(cardZoomRef.current)));
+  const modelZoomRef = useRef(1);
+  const changeModelZoom = useCallback((amount: number) => {
+    modelZoomRef.current = Math.max(.65, Math.min(2.5, modelZoomRef.current + amount));
+    modelEntriesRef.current.forEach((entry) => entry.content.scale.setScalar(entry.baseScale * modelZoomRef.current));
+  }, []);
+
+  const openActiveDetails = useCallback((focusTarget?: HTMLElement | null) => {
+    const target = markerTargets.find((item) => item.slug === trackingRef.current.activeSlug);
+    if (target) detailOpenersRef.current.get(target.targetIndex)?.(focusTarget);
   }, []);
 
   const updateStatus = useCallback((next: ARStatus) => {
@@ -111,17 +135,8 @@ export function ARScene({ onExit }: { onExit: () => void }) {
     for (const target of markerTargets) {
       const point = qrPointsRef.current.get(target.targetIndex);
       if (point) point.hidden = trackingRef.current.activeSlug !== target.slug;
-    }
-    // Apply selection before React effects/rendering so an old exit cannot overlap a new target.
-    for (const target of markerTargets) {
-      const element = panelElementsRef.current.get(target.targetIndex);
-      if (!element) continue;
-      const previous = element.classList.contains('is-tracked') ? 'tracked' : element.classList.contains('is-leaving') ? 'leaving' : 'hidden';
-      const phase = nextMarkerPanelPhase(previous, trackingRef.current.activeSlug === target.slug, trackingRef.current.activeSlug !== null);
-      element.classList.toggle('is-tracked', phase === 'tracked');
-      element.classList.toggle('is-leaving', phase === 'leaving');
-      element.inert = phase !== 'tracked';
-      element.setAttribute('aria-hidden', String(phase !== 'tracked'));
+      const model = modelEntriesRef.current.get(target.targetIndex);
+      if (model?.loaded) model.content.visible = trackingRef.current.activeSlug === target.slug;
     }
     dispatch(action);
     if (trackingRef.current.activeSlug) updateStatus('detected');
@@ -154,13 +169,14 @@ export function ARScene({ onExit }: { onExit: () => void }) {
         updateStatus('loading');
         trackingRef.current = initialMarkerTrackingState;
         dispatch({ type: 'reset' });
-        panelElementsRef.current.clear();
+        modelEntriesRef.current.clear();
         qrPointsRef.current.clear();
         try {
-          const [{ MindARThree }, THREE, { CSS3DObject }] = await Promise.all([
+          const [{ MindARThree }, THREE, { CSS3DObject }, { GLTFLoader }] = await Promise.all([
             import('mind-ar/dist/mindar-image-three.prod.js'),
             import('three'),
             import('three/addons/renderers/CSS3DRenderer.js'),
+            import('three/addons/loaders/GLTFLoader.js'),
           ]);
           if (!isCurrent()) return;
 
@@ -170,35 +186,63 @@ export function ARScene({ onExit }: { onExit: () => void }) {
           mindar.cssRenderer.domElement.classList.add('ar-css-renderer');
           mindar.renderer.domElement.classList.add('ar-webgl-renderer');
           mindar.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+          mindar.scene.add(new THREE.HemisphereLight(0xffffff, 0x263b30, 2.1));
+          const keyLight = new THREE.DirectionalLight(0xffffff, 2.5);
+          keyLight.position.set(0.4, 0.8, 1.2);
+          mindar.scene.add(keyLight);
           const continuity = createTrackingContinuity(action => {
             if (isCurrent()) updateTracking(action);
           });
-          const roots: Root[] = [];
-          const panelObjects: Group[] = [];
-          const panelMotionUpdaters: (() => void)[] = [];
-          const animationListeners = new Map<HTMLElement, (event: AnimationEvent) => void>();
+          const modelMotionUpdaters: (() => void)[] = [];
+          const modelLoader = new GLTFLoader();
+          const mixers: AnimationMixer[] = [];
+          const pointAnchors: Group[] = [];
+          const raycaster = new THREE.Raycaster();
+          const pointer = new THREE.Vector2();
           let frame = 0;
-          const tiltWithDevice = (event: DeviceOrientationEvent) => {
-            const tiltX = Math.max(-12, Math.min(12, ((event.beta ?? 45) - 45) * 0.28));
-            const tiltY = Math.max(-12, Math.min(12, (event.gamma ?? 0) * 0.45));
-            container.querySelectorAll<HTMLElement>('.ar-anchor-card').forEach((card) => {
-              card.style.setProperty('--device-tilt-x', `${tiltX}deg`);
-              card.style.setProperty('--device-tilt-y', `${tiltY}deg`);
+          const clock = new THREE.Clock();
+          const resize = () => { if (isCurrent()) mindar.resize(); };
+          const disposeModel = (root: Group) => {
+            root.traverse((object) => {
+              if (!(object instanceof THREE.Mesh)) return;
+              object.geometry.dispose();
+              const materials = Array.isArray(object.material) ? object.material : [object.material];
+              materials.forEach((material) => {
+                Object.values(material).forEach((value) => {
+                  if (value && typeof value === 'object' && 'isTexture' in value) {
+                    (value as { dispose?: () => void }).dispose?.();
+                  }
+                });
+                material.dispose();
+              });
             });
           };
-          const resize = () => { if (isCurrent()) mindar.resize(); };
+          const handleModelPointerUp = (event: PointerEvent) => {
+            const activeTarget = markerTargets.find((target) => target.slug === trackingRef.current.activeSlug);
+            if (!activeTarget) return;
+            const entry = modelEntriesRef.current.get(activeTarget.targetIndex);
+            if (!entry?.loaded || !entry.content.visible) return;
+            const bounds = mindar.renderer.domElement.getBoundingClientRect();
+            if (!bounds.width || !bounds.height) return;
+            pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+            pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
+            raycaster.setFromCamera(pointer, mindar.camera);
+            if (raycaster.intersectObject(entry.content, true).length > 0) openActiveDetails();
+          };
           const removeViewListeners = () => {
             continuity.dispose();
             if (frame) window.cancelAnimationFrame(frame);
             window.removeEventListener('orientationchange', resize);
-            window.removeEventListener('deviceorientation', tiltWithDevice);
             window.visualViewport?.removeEventListener('resize', resize);
-            panelElementsRef.current.clear();
+            mindar.renderer.domElement.removeEventListener('pointerup', handleModelPointerUp);
             qrPointsRef.current.clear();
-            panelObjects.forEach((object) => object.removeFromParent());
-            animationListeners.forEach((listener, element) => element.removeEventListener('animationend', listener));
-            roots.forEach((root) => root.unmount());
-            container.querySelectorAll('.ar-readable-anchor').forEach(element => element.remove());
+            modelEntriesRef.current.forEach((entry) => {
+              disposeModel(entry.anchor);
+              entry.anchor.removeFromParent();
+              entry.sourceAnchor.removeFromParent();
+            });
+            modelEntriesRef.current.clear();
+            pointAnchors.forEach((anchor) => anchor.removeFromParent());
           };
           cleanupRef.current = () => { removeViewListeners(); removeResizeListeners(); };
 
@@ -206,62 +250,73 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             const bin = getMarkerBin(target.targetIndex);
             if (!bin) continue;
             const cssAnchor = mindar.addCSSAnchor(target.targetIndex);
-            // MindAR toggles this probe's visibility every frame. Keep the actual panel in a
-            // sibling CSS3D group so its state and exit animation cannot be overwritten.
+            // MindAR toggles this probe's visibility every frame. Keep the QR point in a
+            // sibling CSS3D group so its state cannot be overwritten.
             const probeElement = document.createElement('div');
             probeElement.setAttribute('aria-hidden', 'true');
             const probe = new CSS3DObject(probeElement);
             probe.visible = false;
             cssAnchor.group.add(probe);
 
-            const element = document.createElement('div');
-            element.className = 'ar-anchor-root ar-readable-anchor';
-            element.style.setProperty('--user-card-scale', String(cardZoomRef.current));
-            element.style.width = `${markerLabelGeometry.panelWidth}px`;
-            element.style.height = `${markerLabelGeometry.panelHeight}px`;
-            panelElementsRef.current.set(target.targetIndex, element);
-            const onAnimationEnd = (event: AnimationEvent) => {
-              if (event.target !== element.firstElementChild) return;
-              const currentPhase = element.classList.contains('is-tracked') ? 'tracked' : element.classList.contains('is-leaving') ? 'leaving' : 'hidden';
-              const phase = finishMarkerPanelExit(currentPhase, event.animationName);
-              element.classList.toggle('is-leaving', phase === 'leaving');
-            };
-            animationListeners.set(element, onAnimationEnd);
-            element.addEventListener('animationend', onAnimationEnd);
-            element.inert = true;
-            element.setAttribute('aria-hidden', 'true');
-            const root = createRoot(element);
-            roots.push(root);
-            root.render(<ARInformationPanel bin={bin} />);
-            const pose = getMarkerCSSPanelPose();
-            const panelAnchor = new THREE.Group();
-            panelAnchor.matrixAutoUpdate = false;
-            panelAnchor.matrix.copy(cssAnchor.group.matrix);
-            const targetPanelMatrix = new THREE.Matrix4().copy(cssAnchor.group.matrix);
+            const webglAnchor = mindar.addAnchor(target.targetIndex);
+            const modelAnchor = new THREE.Group();
+            modelAnchor.matrixAutoUpdate = false;
+            modelAnchor.matrix.copy(webglAnchor.group.matrix);
+            const modelContent = new THREE.Group();
+            modelContent.visible = false;
+            modelAnchor.add(modelContent);
+            mindar.scene.add(modelAnchor);
+            const modelEntry: ModelEntry = { anchor: modelAnchor, sourceAnchor: webglAnchor.group, content: modelContent, baseScale: 1, loaded: false };
+            modelEntriesRef.current.set(target.targetIndex, modelEntry);
+            const targetModelMatrix = new THREE.Matrix4().copy(webglAnchor.group.matrix);
             const currentPosition = new THREE.Vector3();
             const currentRotation = new THREE.Quaternion();
             const currentScale = new THREE.Vector3();
             const targetPosition = new THREE.Vector3();
             const targetRotation = new THREE.Quaternion();
             const targetScale = new THREE.Vector3();
-            panelMotionUpdaters.push(() => {
-              // Interpolar traslación, rotación y escala por separado evita deformar la tarjeta.
-              panelAnchor.matrix.decompose(currentPosition, currentRotation, currentScale);
-              targetPanelMatrix.decompose(targetPosition, targetRotation, targetScale);
+            modelMotionUpdaters.push(() => {
+              // Interpolar la pose evita que el modelo tiemble cuando MindAR actualiza el marcador.
+              modelAnchor.matrix.decompose(currentPosition, currentRotation, currentScale);
+              targetModelMatrix.decompose(targetPosition, targetRotation, targetScale);
               currentPosition.lerp(targetPosition, 0.22);
               currentRotation.slerp(targetRotation, 0.22);
               currentScale.lerp(targetScale, 0.22);
-              panelAnchor.matrix.compose(currentPosition, currentRotation, currentScale);
-              panelAnchor.matrixWorldNeedsUpdate = true;
+              modelAnchor.matrix.compose(currentPosition, currentRotation, currentScale);
+              modelAnchor.matrixWorldNeedsUpdate = true;
             });
-            const panelObject = new CSS3DObject(element);
-            const panelScale = 1.35;
-            const panelClearance = 220;
-            panelObject.scale.setScalar(panelScale);
-            panelObject.position.set(pose.x - markerLabelGeometry.panelWidth * panelScale / 2, pose.y + panelClearance - markerLabelGeometry.panelHeight * panelScale / 2, pose.z);
-            panelAnchor.add(panelObject);
-            mindar.cssScene.add(panelAnchor);
-            panelObjects.push(panelAnchor);
+
+            const loadModel = async () => {
+              if (modelEntry.loading) return modelEntry.loading;
+              const source = modelSources[bin.slug];
+              if (!source) return;
+              modelEntry.loading = modelLoader.loadAsync(source).then((gltf) => {
+                if (!isCurrent()) return;
+                const model = gltf.scene;
+                const bounds = new THREE.Box3().setFromObject(model);
+                const center = bounds.getCenter(new THREE.Vector3());
+                const size = bounds.getSize(new THREE.Vector3());
+                const largestDimension = Math.max(size.x, size.y, size.z, 0.001);
+                model.position.sub(center);
+                modelEntry.baseScale = 0.42 / largestDimension;
+                modelEntry.content.position.set(0, 0.06, 0.025);
+                modelEntry.content.scale.setScalar(modelEntry.baseScale * modelZoomRef.current);
+                model.traverse((object) => {
+                  if ('frustumCulled' in object) object.frustumCulled = false;
+                });
+                modelEntry.content.add(model);
+                modelEntry.mixer = gltf.animations.length ? new THREE.AnimationMixer(model) : undefined;
+                gltf.animations.forEach((clip) => modelEntry.mixer?.clipAction(clip).play());
+                if (modelEntry.mixer) mixers.push(modelEntry.mixer);
+                modelEntry.loaded = true;
+                modelEntry.content.visible = trackingRef.current.activeSlug === target.slug;
+              }).catch((error) => {
+                modelEntry.loading = undefined;
+                console.error(`No se pudo cargar el modelo AR de ${bin.name}`, error);
+              });
+              return modelEntry.loading;
+            };
+
             const qrPoint = getMarkerQRPoint();
             const pointElement = document.createElement('div');
             pointElement.className = 'ar-qr-point';
@@ -271,41 +326,53 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             qrPointsRef.current.set(target.targetIndex, pointElement);
             const pointObject = new CSS3DObject(pointElement);
             pointObject.position.set(qrPoint.x * 1000, qrPoint.y * 1000, 0);
-            panelAnchor.add(pointObject);
+            const pointAnchor = new THREE.Group();
+            pointAnchor.matrixAutoUpdate = false;
+            pointAnchor.matrix.copy(cssAnchor.group.matrix);
+            pointAnchor.add(pointObject);
+            mindar.cssScene.add(pointAnchor);
+            pointAnchors.push(pointAnchor);
             cssAnchor.onTargetUpdate = () => {
               if (!isCurrent()) return;
               if (cssAnchor.visible) {
-                targetPanelMatrix.copy(cssAnchor.group.matrix);
+                pointAnchor.matrix.copy(cssAnchor.group.matrix);
               }
+            };
+            webglAnchor.onTargetUpdate = () => {
+              if (!isCurrent()) return;
+              if (webglAnchor.visible) targetModelMatrix.copy(webglAnchor.group.matrix);
             };
             cssAnchor.onTargetFound = () => {
               if (!isCurrent()) return;
+              void loadModel();
               continuity.found(target.slug);
             };
             cssAnchor.onTargetLost = () => {
               if (!isCurrent()) return;
+              modelEntry.content.visible = false;
               continuity.lost(target.slug);
             };
           }
 
+          mindar.renderer.domElement.addEventListener('pointerup', handleModelPointerUp);
+
           await mindar.start();
           if (!isCurrent()) {
-            roots.forEach((root) => root.unmount());
-            container.querySelectorAll('.ar-readable-anchor').forEach(element => element.remove());
             disposeARSession(mindar);
             return;
           }
           updateStatus(trackingRef.current.activeSlug ? 'detected' : 'searching');
           const render = () => {
             if (!isCurrent()) return;
-            panelMotionUpdaters.forEach(update => update());
+            const delta = clock.getDelta();
+            modelMotionUpdaters.forEach(update => update());
+            mixers.forEach((mixer) => mixer.update(delta));
             mindar.renderer.render(mindar.scene, mindar.camera);
             mindar.cssRenderer.render(mindar.cssScene, mindar.camera);
             frame = window.requestAnimationFrame(render);
           };
           frame = window.requestAnimationFrame(render);
           window.addEventListener('orientationchange', resize);
-          window.addEventListener('deviceorientation', tiltWithDevice);
           window.visualViewport?.addEventListener('resize', resize);
         } catch (error) {
           if (!isCurrent()) return;
@@ -367,22 +434,7 @@ export function ARScene({ onExit }: { onExit: () => void }) {
       disposeCurrent();
     };
     // A retry remounts the tracker; catalog content and handlers are module-stable.
-  }, [attempt, cameraDeviceId, disposeCurrent, updateStatus, updateTracking]);
-
-  useEffect(() => {
-    for (const target of markerTargets) {
-      const root = panelElementsRef.current.get(target.targetIndex);
-      if (root) {
-        // Keep presentation tied to one explicit target and reject every stale/hidden category.
-        const activeSlug = trackingRef.current.activeSlug;
-        const active = activeSlug === target.slug;
-        const previousPhase = root.classList.contains('is-tracked') ? 'tracked' : root.classList.contains('is-leaving') ? 'leaving' : 'hidden';
-        const phase = nextMarkerPanelPhase(previousPhase, active, activeSlug !== null);
-        root.classList.toggle('is-tracked', phase === 'tracked');
-        root.classList.toggle('is-leaving', phase === 'leaving');
-      }
-    }
-  }, [tracking.activeSlug]);
+  }, [attempt, cameraDeviceId, disposeCurrent, openActiveDetails, updateStatus, updateTracking]);
 
   const retry = () => {
     if (sessionRef.current) disposeCurrent();
@@ -398,8 +450,16 @@ export function ARScene({ onExit }: { onExit: () => void }) {
       <div className="ar-stage" ref={containerRef}>
         {status === 'loading' && <div className="ar-camera-placeholder"><LoaderCircle className="ar-spin" size={24} /><span>Preparando cámara…</span></div>}
       </div>
+      {markerTargets.map((target) => {
+        const bin = getMarkerBin(target.targetIndex);
+        if (!bin) return null;
+        return <ARInformationPanel key={target.slug} bin={bin} onOpenReady={(open) => {
+          if (open) detailOpenersRef.current.set(target.targetIndex, open);
+          else detailOpenersRef.current.delete(target.targetIndex);
+        }} />;
+      })}
       <ARTrackingStatus status={status} markerName={activeBin?.name} />
-      <ARControls onZoomIn={() => changeCardZoom(.15)} onZoomOut={() => changeCardZoom(-.15)} />
+      <ARControls onZoomIn={() => changeModelZoom(.15)} onZoomOut={() => changeModelZoom(-.15)} onOpenDetails={openActiveDetails} canOpenDetails={Boolean(activeBin)} />
       <button className="ar-help-button" onClick={() => setHelpOpen((open) => !open)} aria-expanded={helpOpen} aria-label="Instrucciones de realidad aumentada"><CircleHelp size={20} /></button>
       {helpOpen && <aside className="ar-help-card"><strong>Cómo encontrar el marcador</strong><p>Ilumina la etiqueta, mantén el teléfono a unos 25–50 cm y muévelo despacio hasta encuadrar el diseño completo.</p></aside>}
       {failed && <ARFallback status={status} onRetry={retry} />}
