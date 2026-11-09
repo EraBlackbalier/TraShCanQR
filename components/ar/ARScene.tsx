@@ -5,7 +5,7 @@ import { CircleHelp, LoaderCircle } from 'lucide-react';
 import type { AnimationMixer, Group } from 'three';
 import type { MindARThree as MindARThreeType, MindARAnchor } from 'mind-ar/dist/mindar-image-three.prod.js';
 import { getBinBySlug } from '@/data/bins';
-import { getMarkerBin, getMarkerQRPoint, markerTargets } from '@/lib/ar/marker-config';
+import { getMarkerBin, getMarkerPanelPose, getMarkerQRPoint, markerLabelGeometry, markerTargets } from '@/lib/ar/marker-config';
 import { createTrackingContinuity, disposeARSession, initialMarkerTrackingState, isCurrentARSession, reduceMarkerTracking } from '@/lib/ar/tracking';
 import type { ARSessionLike } from '@/lib/ar/tracking';
 import { ARControls } from './ARControls';
@@ -30,6 +30,18 @@ const modelSources: Record<string, string> = {
   vidrio: '/ar/models/vidrio.glb?v=2',
   'no-reciclables': '/ar/models/no-reciclables.glb?v=2',
   electronicos: '/ar/models/electronicos.glb?v=2',
+};
+
+const MODEL_ROTATION_SPEED = Math.PI / 8;
+const modelPanelPose = getMarkerPanelPose();
+const modelFrame = {
+  // The model uses the same reserved area as the old information card:
+  // between the label title and the QR, with a small safety margin.
+  x: modelPanelPose.x,
+  y: modelPanelPose.y,
+  z: modelPanelPose.z + 0.025,
+  maxWidth: (markerLabelGeometry.panelWidth * markerLabelGeometry.panelScale / markerLabelGeometry.width) * 0.86,
+  maxHeight: (markerLabelGeometry.panelHeight * markerLabelGeometry.panelScale / markerLabelGeometry.width) * 0.86,
 };
 
 type ModelEntry = {
@@ -62,7 +74,7 @@ function constructMindAR(MindAR: typeof MindARThreeType, container: HTMLElement,
       uiScanning: 'no',
       uiError: 'no',
       warmupTolerance: 0,
-      missTolerance: 3,
+      missTolerance: 2,
       // MindAR 1.2.5 defaults use milliseconds: 0.001 cutoff and beta 1000.
       // Keep its adaptive filter instead of adding distance/orientation lag.
       ...(environmentDeviceId ? { environmentDeviceId } : {}),
@@ -192,8 +204,8 @@ export function ARScene({ onExit }: { onExit: () => void }) {
           mindar.scene.add(keyLight);
           const continuity = createTrackingContinuity(action => {
             if (isCurrent()) updateTracking(action);
-          });
-          const modelMotionUpdaters: (() => void)[] = [];
+          }, 350);
+          const modelMotionUpdaters: ((delta: number) => void)[] = [];
           const modelLoader = new GLTFLoader();
           const mixers: AnimationMixer[] = [];
           const pointAnchors: Group[] = [];
@@ -275,7 +287,7 @@ export function ARScene({ onExit }: { onExit: () => void }) {
             const targetPosition = new THREE.Vector3();
             const targetRotation = new THREE.Quaternion();
             const targetScale = new THREE.Vector3();
-            modelMotionUpdaters.push(() => {
+            modelMotionUpdaters.push((delta) => {
               // Interpolar la pose evita que el modelo tiemble cuando MindAR actualiza el marcador.
               modelAnchor.matrix.decompose(currentPosition, currentRotation, currentScale);
               targetModelMatrix.decompose(targetPosition, targetRotation, targetScale);
@@ -284,6 +296,9 @@ export function ARScene({ onExit }: { onExit: () => void }) {
               currentScale.lerp(targetScale, 0.22);
               modelAnchor.matrix.compose(currentPosition, currentRotation, currentScale);
               modelAnchor.matrixWorldNeedsUpdate = true;
+              if (modelEntry.loaded && modelEntry.content.visible) {
+                modelEntry.content.rotation.y = (modelEntry.content.rotation.y + delta * MODEL_ROTATION_SPEED) % (Math.PI * 2);
+              }
             });
 
             const loadModel = async () => {
@@ -297,9 +312,13 @@ export function ARScene({ onExit }: { onExit: () => void }) {
                 const center = bounds.getCenter(new THREE.Vector3());
                 const size = bounds.getSize(new THREE.Vector3());
                 const largestDimension = Math.max(size.x, size.y, size.z, 0.001);
+                const horizontalSize = Math.max(size.x, size.z, 0.001);
                 model.position.sub(center);
-                modelEntry.baseScale = 0.42 / largestDimension;
-                modelEntry.content.position.set(0, 0.06, 0.025);
+                const fittedScale = Math.min(modelFrame.maxWidth / horizontalSize, modelFrame.maxHeight / Math.max(size.y, 0.001));
+                modelEntry.baseScale = Number.isFinite(fittedScale) && fittedScale > 0
+                  ? fittedScale
+                  : 0.42 / largestDimension;
+                modelEntry.content.position.set(modelFrame.x, modelFrame.y, modelFrame.z);
                 modelEntry.content.scale.setScalar(modelEntry.baseScale * modelZoomRef.current);
                 model.traverse((object) => {
                   if ('frustumCulled' in object) object.frustumCulled = false;
@@ -365,7 +384,7 @@ export function ARScene({ onExit }: { onExit: () => void }) {
           const render = () => {
             if (!isCurrent()) return;
             const delta = clock.getDelta();
-            modelMotionUpdaters.forEach(update => update());
+            modelMotionUpdaters.forEach(update => update(delta));
             mixers.forEach((mixer) => mixer.update(delta));
             mindar.renderer.render(mindar.scene, mindar.camera);
             mindar.cssRenderer.render(mindar.cssScene, mindar.camera);
