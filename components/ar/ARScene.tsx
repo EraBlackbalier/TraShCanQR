@@ -33,6 +33,9 @@ const modelSources: Record<string, string> = {
 };
 
 const MODEL_ROTATION_SPEED = Math.PI / 8;
+// Preserve the larger model footprint introduced in PR #28.
+const MODEL_FRAME_WIDTH_FILL = 0.94;
+const MODEL_FRAME_HEIGHT_FILL = 0.92;
 const modelPanelPose = getMarkerPanelPose();
 const modelFrame = {
   // The model uses the same reserved area as the old information card:
@@ -40,8 +43,8 @@ const modelFrame = {
   x: modelPanelPose.x,
   y: modelPanelPose.y,
   z: modelPanelPose.z + 0.025,
-  maxWidth: (markerLabelGeometry.panelWidth * markerLabelGeometry.panelScale / markerLabelGeometry.width) * 0.94,
-  maxHeight: (markerLabelGeometry.panelHeight * markerLabelGeometry.panelScale / markerLabelGeometry.width) * 0.92,
+  maxWidth: (markerLabelGeometry.panelWidth * markerLabelGeometry.panelScale / markerLabelGeometry.width) * MODEL_FRAME_WIDTH_FILL,
+  maxHeight: (markerLabelGeometry.panelHeight * markerLabelGeometry.panelScale / markerLabelGeometry.width) * MODEL_FRAME_HEIGHT_FILL,
 };
 
 type ModelEntry = {
