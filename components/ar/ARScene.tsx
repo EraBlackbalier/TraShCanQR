@@ -40,8 +40,8 @@ const modelFrame = {
   x: modelPanelPose.x,
   y: modelPanelPose.y,
   z: modelPanelPose.z + 0.025,
-  maxWidth: (markerLabelGeometry.panelWidth * markerLabelGeometry.panelScale / markerLabelGeometry.width) * 0.94,
-  maxHeight: (markerLabelGeometry.panelHeight * markerLabelGeometry.panelScale / markerLabelGeometry.width) * 0.92,
+  maxWidth: (markerLabelGeometry.panelWidth * markerLabelGeometry.panelScale / markerLabelGeometry.width) * 1.02,
+  maxHeight: (markerLabelGeometry.panelHeight * markerLabelGeometry.panelScale / markerLabelGeometry.width) * 0.98,
 };
 
 type ModelEntry = {
